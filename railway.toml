@@ -1,0 +1,7 @@
+# railway.toml
+[build]
+rootDir = "backend"  # tell Railway the app lives in /backend
+
+[deploy]
+startCommand = "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn gamejournal_backend.wsgi"
+restartPolicyType = "ON_FAILURE"
