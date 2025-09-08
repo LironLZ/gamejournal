@@ -1,8 +1,14 @@
 import Entries from "./pages/Entries";
 import Games from "./pages/Games";
-import { Routes, Route, Link, useNavigate } from "react-router-dom";
+import { Routes, Route, Link, useNavigate, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import api from "./api";
+
+// --- Protected route wrapper ---
+function ProtectedRoute({ element }: { element: JSX.Element }) {
+  const authed = !!localStorage.getItem("access");
+  return authed ? element : <Navigate to="/login" replace />;
+}
 
 // --- Register ---
 function Register() {
@@ -57,7 +63,7 @@ function Login() {
       const { data } = await api.post("/auth/login/", { username, password });
       localStorage.setItem("access", data.access);
       localStorage.setItem("refresh", data.refresh);
-      nav("/me");
+      nav("/entries");
     } catch {
       setMsg("Invalid credentials");
     }
@@ -88,54 +94,81 @@ function Login() {
 // --- Me (protected) ---
 function Me() {
   const [user, setUser] = useState<string | null>(null);
-  const [err, setErr] = useState("");
-
   useEffect(() => {
     (async () => {
       try {
         const { data } = await api.get("/auth/whoami/");
         setUser(data.user);
       } catch {
-        setErr("Unauthorized. Please login again.");
+        setUser(null);
       }
     })();
   }, []);
-
   return (
     <div style={{ maxWidth: 480, margin: "40px auto" }}>
       <h2>Me</h2>
-      {user ? <p>Logged in as <b>{user}</b></p> : <p>{err || "Loading..."}</p>}
-      <button
-        onClick={() => {
-          localStorage.clear();
-          window.location.href = "/login";
-        }}
-      >
+      {user ? <p>Logged in as <b>{user}</b></p> : <p>Loading…</p>}
+      <button onClick={() => { localStorage.clear(); window.location.href = "/login"; }}>
         Logout
       </button>
     </div>
   );
 }
 
-// --- App shell with nav & routes ---
+// --- App shell with nav & routes + username in nav ---
 export default function App() {
+  const nav = useNavigate();
+  const [username, setUsername] = useState<string | null>(null);
+
+  // fetch username for nav if authed
+  useEffect(() => {
+    const token = localStorage.getItem("access");
+    if (!token) { setUsername(null); return; }
+    (async () => {
+      try {
+        const { data } = await api.get("/auth/whoami/");
+        setUsername(data.user);
+      } catch {
+        setUsername(null);
+      }
+    })();
+  }, []);
+
+  function logout() {
+    localStorage.clear();
+    setUsername(null);
+    nav("/login");
+  }
+
+  const authed = !!localStorage.getItem("access");
+
   return (
     <div>
-      <nav style={{ display: "flex", gap: 12, padding: 12, borderBottom: "1px solid #ddd" }}>
-        <Link to="/register">Register</Link>
-        <Link to="/login">Login</Link>
-        <Link to="/me">Me</Link>
+      <nav style={{ display: "flex", gap: 12, padding: 12, borderBottom: "1px solid #ddd", alignItems: "center" }}>
+        <Link to="/games">Games</Link>
         <Link to="/entries">Entries</Link>
-        <Link to="/games">Games</Link> {/* new */}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
+          {authed ? (
+            <>
+              <span style={{ opacity: 0.8 }}>Hello{username ? `, ${username}` : ""}</span>
+              <button onClick={logout}>Logout</button>
+            </>
+          ) : (
+            <>
+              <Link to="/register">Register</Link>
+              <Link to="/login">Login</Link>
+            </>
+          )}
+        </div>
       </nav>
 
       <Routes>
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/me" element={<Me />} />
-        <Route path="/entries" element={<Entries />} />
-        <Route path="/games" element={<Games />} /> {/* new */}
+        <Route path="/games" element={<ProtectedRoute element={<Games />} />} />
+        <Route path="/entries" element={<ProtectedRoute element={<Entries />} />} />
+        <Route path="/me" element={<ProtectedRoute element={<Me />} />} />
       </Routes>
     </div>
   );

@@ -50,6 +50,25 @@ class GameEntrySerializer(serializers.ModelSerializer):
 
     def get_total_minutes(self, obj):
         return obj.sessions.aggregate(s=Sum('duration_min'))['s'] or 0
+    
+    def validate_score(self, value):
+        if value is None:
+            return value
+        if not (0 <= value <= 10):
+            raise serializers.ValidationError("Score must be between 0 and 10.")
+        return value
+    
+    def validate(self, attrs):
+    # handle partial updates by falling back to existing instance values
+        started = attrs.get("started_at", getattr(self.instance, "started_at", None))
+        finished = attrs.get("finished_at", getattr(self.instance, "finished_at", None))
+        if started and finished and finished < started:
+            from rest_framework import serializers
+            raise serializers.ValidationError({"finished_at": "Finish date cannot be before start date."})
+        return attrs
+
+    
+    
 
 class PlaySessionSerializer(serializers.ModelSerializer):
     class Meta:

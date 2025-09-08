@@ -1,4 +1,7 @@
 # core/views.py
+import os
+import requests
+
 from django.shortcuts import get_object_or_404
 from django.db.models import Sum
 
@@ -17,6 +20,9 @@ from .serializers import (
     GameWriteSerializer,
 )
 
+# ---- RAWG key from env -------------------------------------------------------
+RAWG_API_KEY = os.environ.get("RAWG_API_KEY")
+
 # ---------- Health ----------
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -27,13 +33,8 @@ def ping(request):
 # ---------- Auth ----------
 @extend_schema(
     request=RegisterSerializer,
-    examples=[
-        OpenApiExample(
-            'Register example',
-            value={"username": "tester", "password": "secret123"}
-        )
-    ],
-    responses={201: {"type": "object", "properties": {"ok": {"type": "boolean"}}}}
+    examples=[OpenApiExample('Register example', value={"username": "tester", "password": "secret123"})],
+    responses={201: {"type": "object", "properties": {"ok": {"type": "boolean"}}}},
 )
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -68,6 +69,83 @@ def my_stats(request):
                                             .aggregate(s=Sum('duration_min'))['s'] or 0,
     }
     return Response(data)
+
+
+# ---------- RAWG search & import ----------
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def search_games_external(request):
+    """
+    Proxy to RAWG: /api/search/games/?q=<query>
+    Returns top results with: rawg_id, title, release_year, background_image.
+    """
+    q = (request.query_params.get('q') or '').strip()
+    if not q:
+        return Response([])
+
+    if not RAWG_API_KEY:
+        return Response({"detail": "RAWG_API_KEY missing on server"}, status=500)
+
+    r = requests.get(
+        "https://api.rawg.io/api/games",
+        params={"key": RAWG_API_KEY, "search": q, "page_size": 8},
+        timeout=10,
+    )
+    r.raise_for_status()
+    results = r.json().get("results", [])
+    items = []
+    for g in results:
+        released = g.get("released") or ""
+        items.append({
+            "source": "rawg",
+            "rawg_id": g.get("id"),
+            "title": g.get("name"),
+            "release_year": int(released[:4]) if released[:4].isdigit() else None,
+            "background_image": g.get("background_image"),
+        })
+    return Response(items)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def import_game(request):
+    """
+    Body: {"rawg_id": <int>}
+    Fetch RAWG detail and create/update a local Game; returns the local game info.
+    """
+    rawg_id = request.data.get("rawg_id")
+    if not rawg_id:
+        return Response({"detail": "rawg_id required"}, status=400)
+
+    if not RAWG_API_KEY:
+        return Response({"detail": "RAWG_API_KEY missing on server"}, status=500)
+
+    r = requests.get(
+        f"https://api.rawg.io/api/games/{rawg_id}",
+        params={"key": RAWG_API_KEY},
+        timeout=10,
+    )
+    r.raise_for_status()
+    g = r.json()
+
+    title = g.get("name") or "Unknown"
+    released = g.get("released") or ""
+    year = int(released[:4]) if released[:4].isdigit() else None
+    cover = g.get("background_image")
+
+    game, created = Game.objects.get_or_create(
+        title=title,
+        defaults={"release_year": year, "cover_url": cover},
+    )
+    # If game existed but no cover stored yet, fill it
+    if not created and cover and not game.cover_url:
+        game.cover_url = cover
+        game.save(update_fields=["cover_url"])
+
+    return Response(
+        {"id": game.id, "title": game.title, "release_year": game.release_year, "cover_url": game.cover_url},
+        status=201
+    )
 
 
 # ---------- Permissions ----------

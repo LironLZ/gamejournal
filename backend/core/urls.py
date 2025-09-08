@@ -19,12 +19,16 @@ urlpatterns = [
 
     # auth
     path('auth/register/', views.register, name='register'),
-    path('auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('auth/whoami/', views.whoami, name='whoami'),
+    path('auth/login/',    TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('auth/refresh/',  TokenRefreshView.as_view(),    name='token_refresh'),
+    path('auth/whoami/',   views.whoami, name='whoami'),
 
     # stats
     path('stats/', views.my_stats, name='my-stats'),
+
+    # RAWG-backed search & import
+    path('search/games/', views.search_games_external, name='search-games'),
+    path('import/game/',  views.import_game,           name='import-game'),
 
     # resources
     path('', include(router.urls)),
