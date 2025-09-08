@@ -3,6 +3,7 @@ import Games from "./pages/Games";
 import { Routes, Route, Link, useNavigate, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import api from "./api";
+import PublicProfile from "./pages/PublicProfile";
 
 // --- Protected route wrapper ---
 function ProtectedRoute({ element }: { element: JSX.Element }) {
@@ -169,6 +170,31 @@ export default function App() {
         <Route path="/games" element={<ProtectedRoute element={<Games />} />} />
         <Route path="/entries" element={<ProtectedRoute element={<Entries />} />} />
         <Route path="/me" element={<ProtectedRoute element={<Me />} />} />
+      </Routes>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <div>
+      <nav style={{ display: "flex", gap: 12, padding: 12, borderBottom: "1px solid #ddd" }}>
+        <Link to="/games">Games</Link>
+        <Link to="/entries">Entries</Link>
+        <Link to="/register">Register</Link>
+        <Link to="/login">Login</Link>
+      </nav>
+
+      <Routes>
+        {/* existing routes */}
+        <Route path="/" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/me" element={<Me />} />
+        <Route path="/entries" element={<Entries />} />
+
+        {/* NEW public profile route */}
+        <Route path="/u/:username" element={<PublicProfile />} />
       </Routes>
     </div>
   );
