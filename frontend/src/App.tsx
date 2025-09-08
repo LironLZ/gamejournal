@@ -1,14 +1,15 @@
-import Entries from "./pages/Entries";
-import Games from "./pages/Games";
 import { Routes, Route, Link, useNavigate, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import api from "./api";
+
+import Entries from "./pages/Entries";
+import Games from "./pages/Games";
 import PublicProfile from "./pages/PublicProfile";
 
 // --- Protected route wrapper ---
-function ProtectedRoute({ element }: { element: JSX.Element }) {
+function ProtectedRoute({ children }: { children: JSX.Element }) {
   const authed = !!localStorage.getItem("access");
-  return authed ? element : <Navigate to="/login" replace />;
+  return authed ? children : <Navigate to="/login" replace />;
 }
 
 // --- Register ---
@@ -116,15 +117,15 @@ function Me() {
   );
 }
 
-// --- App shell with nav & routes + username in nav ---
+// --- App shell with nav & routes ---
 export default function App() {
   const nav = useNavigate();
   const [username, setUsername] = useState<string | null>(null);
+  const authed = !!localStorage.getItem("access");
 
   // fetch username for nav if authed
   useEffect(() => {
-    const token = localStorage.getItem("access");
-    if (!token) { setUsername(null); return; }
+    if (!authed) { setUsername(null); return; }
     (async () => {
       try {
         const { data } = await api.get("/auth/whoami/");
@@ -133,15 +134,13 @@ export default function App() {
         setUsername(null);
       }
     })();
-  }, []);
+  }, [authed]);
 
   function logout() {
     localStorage.clear();
     setUsername(null);
     nav("/login");
   }
-
-  const authed = !!localStorage.getItem("access");
 
   return (
     <div>
@@ -151,7 +150,14 @@ export default function App() {
         <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
           {authed ? (
             <>
-              <span style={{ opacity: 0.8 }}>Hello{username ? `, ${username}` : ""}</span>
+              <span style={{ opacity: 0.8 }}>
+                Hello{username ? <>,&nbsp;<b>{username}</b></> : ""}
+              </span>
+              {username && (
+                <a href={`/u/${encodeURIComponent(username)}`} target="_blank" rel="noreferrer">
+                  Public profile
+                </a>
+              )}
               <button onClick={logout}>Logout</button>
             </>
           ) : (
@@ -164,37 +170,23 @@ export default function App() {
       </nav>
 
       <Routes>
+        {/* default: send authed users to entries, others to login */}
         <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Login />} />
+
+        {/* auth */}
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/games" element={<ProtectedRoute element={<Games />} />} />
-        <Route path="/entries" element={<ProtectedRoute element={<Entries />} />} />
-        <Route path="/me" element={<ProtectedRoute element={<Me />} />} />
-      </Routes>
-    </div>
-  );
-}
 
-export default function App() {
-  return (
-    <div>
-      <nav style={{ display: "flex", gap: 12, padding: 12, borderBottom: "1px solid #ddd" }}>
-        <Link to="/games">Games</Link>
-        <Link to="/entries">Entries</Link>
-        <Link to="/register">Register</Link>
-        <Link to="/login">Login</Link>
-      </nav>
+        {/* protected */}
+        <Route path="/games" element={<ProtectedRoute><Games /></ProtectedRoute>} />
+        <Route path="/entries" element={<ProtectedRoute><Entries /></ProtectedRoute>} />
+        <Route path="/me" element={<ProtectedRoute><Me /></ProtectedRoute>} />
 
-      <Routes>
-        {/* existing routes */}
-        <Route path="/" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/me" element={<Me />} />
-        <Route path="/entries" element={<Entries />} />
-
-        {/* NEW public profile route */}
+        {/* public profile */}
         <Route path="/u/:username" element={<PublicProfile />} />
+
+        {/* fallback */}
+        <Route path="*" element={<div style={{ padding: 24 }}>Not found</div>} />
       </Routes>
     </div>
   );
