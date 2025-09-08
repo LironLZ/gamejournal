@@ -1,9 +1,11 @@
 # core/views.py
 import os
 import requests
+from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from django.db.models import Sum
+from django.db.models import Sum, Count, Q
 
 from rest_framework import status, viewsets, permissions
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
@@ -18,19 +20,21 @@ from .serializers import (
     GameEntrySerializer,
     PlaySessionSerializer,
     GameWriteSerializer,
+    PublicEntrySerializer,  # for public profile
 )
 
 # ---- RAWG key from env -------------------------------------------------------
 RAWG_API_KEY = os.environ.get("RAWG_API_KEY")
 
-# ---------- Health ----------
+
+# ---------- Health ------------------------------------------------------------
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def ping(request):
     return Response({"status": "ok", "app": "GameJournal"})
 
 
-# ---------- Auth ----------
+# ---------- Auth --------------------------------------------------------------
 @extend_schema(
     request=RegisterSerializer,
     examples=[OpenApiExample('Register example', value={"username": "tester", "password": "secret123"})],
@@ -53,7 +57,7 @@ def whoami(request):
     return Response({"user": request.user.username})
 
 
-# ---------- Stats ----------
+# ---------- Stats (private) ---------------------------------------------------
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def my_stats(request):
@@ -71,13 +75,57 @@ def my_stats(request):
     return Response(data)
 
 
-# ---------- RAWG search & import ----------
+# ---------- Public profile (read-only) ----------------------------------------
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_profile(request, username: str):
+    """
+    Public read-only profile for a given username.
+    Returns user basics, aggregate stats, and entries (with game info).
+    """
+    User = get_user_model()
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    qs = (
+        GameEntry.objects
+        .filter(user=user)
+        .select_related("game")
+        .order_by("-updated_at")
+    )
+
+    stats = qs.aggregate(
+        total=Count("id"),
+        planning=Count("id", filter=Q(status=GameEntry.Status.PLANNING)),
+        playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
+        paused=Count("id", filter=Q(status=GameEntry.Status.PAUSED)),
+        dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
+        completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
+        total_minutes=Sum("sessions__duration_min"),
+    )
+    stats["total_minutes"] = stats["total_minutes"] or 0
+
+    entries = PublicEntrySerializer(qs, many=True).data
+
+    return Response({
+        "user": {
+            "username": user.username,
+            "joined": user.date_joined.isoformat(),
+        },
+        "stats": stats,
+        "entries": entries,
+    })
+
+
+# ---------- RAWG search & import ---------------------------------------------
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def search_games_external(request):
     """
     Proxy to RAWG: /api/search/games/?q=<query>
-    Returns top results with: rawg_id, title, release_year, background_image.
+    Returns up to 8 results with: rawg_id, title, release_year, background_image.
     """
     q = (request.query_params.get('q') or '').strip()
     if not q:
@@ -148,7 +196,7 @@ def import_game(request):
     )
 
 
-# ---------- Permissions ----------
+# ---------- Permissions --------------------------------------------------------
 class IsOwner(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if isinstance(obj, GameEntry):
@@ -158,7 +206,7 @@ class IsOwner(permissions.BasePermission):
         return True
 
 
-# ---------- ViewSets ----------
+# ---------- ViewSets -----------------------------------------------------------
 class GameEntryViewSet(viewsets.ModelViewSet):
     serializer_class = GameEntrySerializer
     permission_classes = [permissions.IsAuthenticated, IsOwner]

@@ -1,79 +1,73 @@
 // frontend/src/api.ts
-import axios, { AxiosError } from "axios";
+import axios from "axios";
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL + "/api",
+    baseURL: import.meta.env.VITE_API_URL, // e.g. https://<railway>.up.railway.app/api
+    withCredentials: false,
 });
 
-// attach access token on every request
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("access");
-    if (token) {
-        config.headers = config.headers ?? {};
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+// Attach access token to every request
+api.interceptors.request.use((cfg) => {
+    const access = localStorage.getItem("access");
+    if (access) cfg.headers.Authorization = `Bearer ${access}`;
+    return cfg;
 });
 
+// --- Silent refresh on 401 ---
 let isRefreshing = false;
-let waiters: Array<(t: string) => void> = [];
+let waiters: ((t: string | null) => void)[] = [];
 
-function notifyWaiters(token: string) {
-    waiters.forEach((cb) => cb(token));
-    waiters = [];
-}
-
-// refresh on 401 once, then retry the original request
 api.interceptors.response.use(
-    (res) => res,
-    async (error: AxiosError) => {
-        const status = error.response?.status;
-        const original = error.config as any;
+    (r) => r,
+    async (error) => {
+        const original = error.config;
+        const status = error?.response?.status;
 
-        if (status === 401 && !original?._retry) {
+        if (status === 401 && !original._retry) {
             original._retry = true;
 
             const refresh = localStorage.getItem("refresh");
             if (!refresh) {
+                // No refresh token → real logout
                 localStorage.clear();
-                window.location.href = "/login";
-                return Promise.reject(error);
+                throw error;
             }
 
-            try {
-                if (isRefreshing) {
-                    // queue callers while a refresh is in flight
-                    return new Promise((resolve) => {
-                        waiters.push((newToken: string) => {
-                            original.headers = original.headers ?? {};
-                            original.headers.Authorization = `Bearer ${newToken}`;
-                            resolve(api(original));
-                        });
-                    });
-                }
+            // If a refresh is already in flight, wait for it
+            if (isRefreshing) {
+                const newToken = await new Promise<string | null>((resolve) => waiters.push(resolve));
+                if (newToken) original.headers.Authorization = `Bearer ${newToken}`;
+                return api(original);
+            }
 
-                isRefreshing = true;
+            // Do the refresh
+            isRefreshing = true;
+            try {
                 const { data } = await axios.post(
-                    import.meta.env.VITE_API_URL + "/api/auth/refresh/",
+                    `${import.meta.env.VITE_API_URL}/auth/refresh/`,
                     { refresh }
                 );
-                const newAccess = (data as any).access;
-                localStorage.setItem("access", newAccess);
-                isRefreshing = false;
-                notifyWaiters(newAccess);
+                localStorage.setItem("access", data.access);
 
-                original.headers = original.headers ?? {};
-                original.headers.Authorization = `Bearer ${newAccess}`;
+                // Wake waiters
+                waiters.forEach((fn) => fn(data.access));
+                waiters = [];
+
+                // Retry the original call with fresh token
+                original.headers.Authorization = `Bearer ${data.access}`;
                 return api(original);
             } catch (e) {
-                isRefreshing = false;
+                // Refresh failed → log out
                 localStorage.clear();
-                window.location.href = "/login";
-                return Promise.reject(e);
+                waiters.forEach((fn) => fn(null));
+                waiters = [];
+                throw e;
+            } finally {
+                isRefreshing = false;
             }
         }
 
-        return Promise.reject(error);
+        throw error;
     }
 );
 

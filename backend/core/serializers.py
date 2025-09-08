@@ -79,3 +79,15 @@ class GameWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Game
         fields = ["id", "title", "release_year"]
+
+class PublicGameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Game
+        fields = ("id", "title", "release_year", "cover_url")
+
+class PublicEntrySerializer(serializers.ModelSerializer):
+    game = PublicGameSerializer()
+
+    class Meta:
+        model = GameEntry
+        fields = ("id", "status", "updated_at", "game")
