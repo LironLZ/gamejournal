@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 import dj_database_url
+from datetime import timedelta
 
 # --- Paths / env -------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,6 +18,12 @@ SECRET_KEY = os.getenv(
     "django-insecure--wgd1bi#p#3nkxyddihrgc$(5iz&mpm2fyud595mgrj!#!g2&",  # dev only
 )
 ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if h]
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),   # was 5m by default
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),     # keep user logged in
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
 
 # --- Apps --------------------------------------------------------------------
 INSTALLED_APPS = [
