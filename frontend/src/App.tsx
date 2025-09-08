@@ -154,9 +154,9 @@ export default function App() {
                 Hello{username ? <>,&nbsp;<b>{username}</b></> : ""}
               </span>
               {username && (
-                <a href={`/u/${encodeURIComponent(username)}`} target="_blank" rel="noreferrer">
+                <Link to={`/u/${encodeURIComponent(username)}`} target="_blank" rel="noreferrer">
                   Public profile
-                </a>
+                </Link>
               )}
               <button onClick={logout}>Logout</button>
             </>
@@ -170,6 +170,9 @@ export default function App() {
       </nav>
 
       <Routes>
+        {/* public profile FIRST */}
+        <Route path="/u/:username" element={<PublicProfile />} />
+
         {/* default: send authed users to entries, others to login */}
         <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Login />} />
 
@@ -182,12 +185,10 @@ export default function App() {
         <Route path="/entries" element={<ProtectedRoute><Entries /></ProtectedRoute>} />
         <Route path="/me" element={<ProtectedRoute><Me /></ProtectedRoute>} />
 
-        {/* public profile */}
-        <Route path="/u/:username" element={<PublicProfile />} />
-
-        {/* fallback */}
+        {/* fallback LAST */}
         <Route path="*" element={<div style={{ padding: 24 }}>Not found</div>} />
       </Routes>
+
     </div>
   );
 }

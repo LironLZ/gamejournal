@@ -15,7 +15,9 @@ type ProfilePayload =
     | { ok: false; detail: string };
 
 export default function PublicProfile() {
-    const { username = "" } = useParams();
+    // ✅ type the params so TS knows the key exists
+    const { username = "" } = useParams<{ username: string }>();
+
     const [data, setData] = useState<ProfilePayload | null>(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState("");
@@ -26,15 +28,13 @@ export default function PublicProfile() {
             try {
                 setLoading(true);
                 setErr("");
-                const { data } = await api.get<ProfilePayload>(`/users/${encodeURIComponent(username)}/`);
+                // ✅ avoid shadowing "data" state
+                const resp = await api.get<ProfilePayload>(`/users/${encodeURIComponent(username)}/`);
                 if (!mounted) return;
-                setData(data);
+                setData(resp.data);
             } catch (e: any) {
                 if (!mounted) return;
-                const msg =
-                    e?.response?.data?.detail ||
-                    e?.message ||
-                    "Failed to load profile.";
+                const msg = e?.response?.data?.detail || e?.message || "Failed to load profile.";
                 setErr(msg);
             } finally {
                 if (mounted) setLoading(false);
@@ -75,7 +75,10 @@ export default function PublicProfile() {
                                     src={en.game.cover_url}
                                     alt={en.game.title}
                                     style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6 }}
-                                    onError={(e) => ((e.currentTarget.style.display = "none"))}
+                                    onError={(e) => {
+                                        // keep it simple to avoid TS noise
+                                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                                    }}
                                 />
                             ) : null}
                             <div style={{ flex: 1 }}>
