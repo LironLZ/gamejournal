@@ -48,7 +48,10 @@ export default function PublicProfile() {
     if (loading) return <div style={{ padding: 24 }}>Loading…</div>;
     if (err) return <div style={{ padding: 24, color: "#c00" }}>Error: {err}</div>;
     if (!data) return <div style={{ padding: 24 }}>No data.</div>;
-    if (!data.ok) return <div style={{ padding: 24, color: "#c00" }}>{data.detail}</div>;
+    if ("detail" in data) {
+        return <div style={{ padding: 24, color: "#c00" }}>{data.detail}</div>;
+    }
+
 
     const { stats, entries } = data;
 
