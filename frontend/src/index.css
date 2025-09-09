@@ -1,68 +1,108 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+/* ---------- Base (light/dark) ---------- */
+@layer base {
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+  /* Kill any leftover Vite demo rules */
+  body {
+    display: block !important;
+    place-items: unset !important;
+    min-height: auto !important;
   }
-  a:hover {
-    color: #747bff;
+
+  html {
+    @apply h-full antialiased;
   }
-  button {
-    background-color: #f9f9f9;
+
+  body {
+    @apply h-full m-0 bg-gray-50 text-slate-900 dark:bg-zinc-900 dark:text-zinc-100;
+  }
+
+  a {
+    @apply text-indigo-600 hover:text-indigo-700 underline-offset-2 dark:text-indigo-400 dark:hover:text-indigo-300;
+  }
+}
+
+/* ---------- Reusable components ---------- */
+@layer components {
+
+  /* Page container */
+  .container-page {
+    @apply max-w-[960px] mx-auto mt-6 px-3 min-h-screen bg-gray-50 dark:bg-zinc-900;
+  }
+
+  /* Cards / tiles */
+  .card {
+    @apply bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-card;
+  }
+
+  .tile {
+    @apply px-4 py-3 min-w-[120px] rounded-xl border shadow-sm cursor-pointer select-none bg-white hover:bg-zinc-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:border-zinc-700;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-semibold transition-colors;
+  }
+
+  .btn-primary {
+    @apply btn bg-indigo-600 text-white hover:bg-indigo-700;
+  }
+
+  .btn-outline {
+    @apply btn border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-zinc-100 text-zinc-800 dark:hover:bg-zinc-800 dark:text-zinc-100;
+  }
+
+  .btn-danger {
+    @apply btn bg-crimson-600 text-white hover:bg-crimson-700;
+  }
+
+  /* Pills / badges */
+  .pill {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .pill-score {
+    @apply pill bg-crimson-600 text-white;
+  }
+
+  .pill-indigo {
+    @apply pill bg-indigo-600 text-white;
+  }
+
+  /* Form controls */
+  .input {
+    @apply border border-gray-300 dark:border-zinc-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-zinc-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
+  }
+
+  .select {
+    @apply border border-gray-300 dark:border-zinc-600 rounded-md px-2 py-1 text-sm bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500;
+  }
+
+  /* Nav */
+  .nav {
+    @apply sticky top-0 z-30 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-700;
+  }
+
+  .nav-inner {
+    @apply max-w-[960px] mx-auto px-3 py-2 flex items-center gap-3;
+  }
+
+  .nav-sp {
+    @apply ml-auto flex items-center gap-3;
+  }
+
+  .nav-link {
+    @apply text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium;
+  }
+
+  .muted {
+    @apply text-zinc-500 dark:text-zinc-400;
   }
 }

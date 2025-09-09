@@ -5,6 +5,7 @@ import api from "./api";
 import Entries from "./pages/Entries";
 import Games from "./pages/Games";
 import PublicProfile from "./pages/PublicProfile";
+import ThemeToggle from "./ThemeToggle";
 
 // --- Protected route wrapper ---
 function ProtectedRoute({ children }: { children: JSX.Element }) {
@@ -31,23 +32,23 @@ function Register() {
   }
 
   return (
-    <form onSubmit={submit} style={{ maxWidth: 360, margin: "40px auto" }}>
-      <h2>Register</h2>
+    <form onSubmit={submit} className="max-w-sm mx-auto mt-10 card p-4">
+      <h2 className="text-xl font-semibold mb-2">Register</h2>
       <input
+        className="input w-full my-2"
         placeholder="Username"
         value={username}
         onChange={(e) => setU(e.target.value)}
-        style={{ display: "block", width: "100%", margin: "8px 0", padding: 8 }}
       />
       <input
         type="password"
+        className="input w-full my-2"
         placeholder="Password"
         value={password}
         onChange={(e) => setP(e.target.value)}
-        style={{ display: "block", width: "100%", margin: "8px 0", padding: 8 }}
       />
-      <button>Sign up</button>
-      <div style={{ marginTop: 8, color: "#555" }}>{msg}</div>
+      <button className="btn-primary mt-2" type="submit">Sign up</button>
+      <div className="mt-2 text-zinc-600 dark:text-zinc-300 text-sm">{msg}</div>
     </form>
   );
 }
@@ -72,23 +73,23 @@ function Login() {
   }
 
   return (
-    <form onSubmit={submit} style={{ maxWidth: 360, margin: "40px auto" }}>
-      <h2>Login</h2>
+    <form onSubmit={submit} className="max-w-sm mx-auto mt-10 card p-4">
+      <h2 className="text-xl font-semibold mb-2">Login</h2>
       <input
+        className="input w-full my-2"
         placeholder="Username"
         value={username}
         onChange={(e) => setU(e.target.value)}
-        style={{ display: "block", width: "100%", margin: "8px 0", padding: 8 }}
       />
       <input
         type="password"
+        className="input w-full my-2"
         placeholder="Password"
         value={password}
         onChange={(e) => setP(e.target.value)}
-        style={{ display: "block", width: "100%", margin: "8px 0", padding: 8 }}
       />
-      <button>Sign in</button>
-      <div style={{ marginTop: 8, color: "#555" }}>{msg}</div>
+      <button className="btn-primary mt-2" type="submit">Sign in</button>
+      <div className="mt-2 text-zinc-600 dark:text-zinc-300 text-sm">{msg}</div>
     </form>
   );
 }
@@ -107,10 +108,13 @@ function Me() {
     })();
   }, []);
   return (
-    <div style={{ maxWidth: 480, margin: "40px auto" }}>
-      <h2>Me</h2>
+    <div className="max-w-md mx-auto mt-10 card p-4">
+      <h2 className="text-xl font-semibold mb-2">Me</h2>
       {user ? <p>Logged in as <b>{user}</b></p> : <p>Loading…</p>}
-      <button onClick={() => { localStorage.clear(); window.location.href = "/login"; }}>
+      <button
+        className="btn-outline mt-2"
+        onClick={() => { localStorage.clear(); window.location.href = "/login"; }}
+      >
         Logout
       </button>
     </div>
@@ -144,28 +148,37 @@ export default function App() {
 
   return (
     <div>
-      <nav style={{ display: "flex", gap: 12, padding: 12, borderBottom: "1px solid #ddd", alignItems: "center" }}>
-        <Link to="/games">Games</Link>
-        <Link to="/entries">Entries</Link>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
-          {authed ? (
-            <>
-              <span style={{ opacity: 0.8 }}>
-                Hello{username ? <>,&nbsp;<b>{username}</b></> : ""}
-              </span>
-              {username && (
-                <Link to={`/u/${encodeURIComponent(username)}`} target="_blank" rel="noreferrer">
-                  Public profile
-                </Link>
-              )}
-              <button onClick={logout}>Logout</button>
-            </>
-          ) : (
-            <>
-              <Link to="/register">Register</Link>
-              <Link to="/login">Login</Link>
-            </>
-          )}
+      <nav className="nav">
+        <div className="nav-inner">
+          <Link className="nav-link" to="/games">Games</Link>
+          <Link className="nav-link" to="/entries">Entries</Link>
+
+          <div className="nav-sp">
+            <ThemeToggle />
+            {authed ? (
+              <>
+                <span className="muted">
+                  Hello{username ? <>,&nbsp;<b>{username}</b></> : ""}
+                </span>
+                {username && (
+                  <Link
+                    className="nav-link"
+                    to={`/u/${encodeURIComponent(username)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Public profile
+                  </Link>
+                )}
+                <button className="btn-outline" onClick={logout}>Logout</button>
+              </>
+            ) : (
+              <>
+                <Link className="nav-link" to="/register">Register</Link>
+                <Link className="nav-link" to="/login">Login</Link>
+              </>
+            )}
+          </div>
         </div>
       </nav>
 
@@ -186,9 +199,8 @@ export default function App() {
         <Route path="/me" element={<ProtectedRoute><Me /></ProtectedRoute>} />
 
         {/* fallback LAST */}
-        <Route path="*" element={<div style={{ padding: 24 }}>Not found</div>} />
+        <Route path="*" element={<div className="p-6">Not found</div>} />
       </Routes>
-
     </div>
   );
 }
