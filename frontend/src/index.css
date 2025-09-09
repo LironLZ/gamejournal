@@ -2,41 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ---------- THEME LAYER ---------- */
 @layer base {
 
-  /* site background + text colors */
+  /* Kill any leftover Vite demo rules */
+  body {
+    display: block !important;
+    place-items: unset !important;
+    min-height: auto !important;
+  }
+
+  /* NEW: override Vite template #root styles */
+  #root {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: unset !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    display: block !important;
+  }
+
   html {
-    @apply bg-gray-50 text-zinc-900;
+    @apply h-full antialiased;
   }
 
-  html.dark {
-    @apply bg-zinc-900 text-zinc-100;
+  body {
+    @apply h-full m-0 bg-gray-50 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100;
   }
 
-  /* make links indigo by default */
   a {
-    @apply text-indigo-600 hover:text-indigo-800 underline-offset-2;
+    @apply text-indigo-600 hover:text-indigo-800 underline-offset-2 dark:text-indigo-400 dark:hover:text-indigo-300;
   }
 }
 
+/* --- Reusable components --- */
 @layer components {
-
-  /* Page container */
   .container-page {
-    @apply max-w-[960px] mx-auto mt-6 px-3 min-h-screen bg-gray-50 dark:bg-zinc-900;
+    @apply max-w-[960px] mx-auto mt-6 px-3 bg-gray-50 min-h-screen dark:bg-zinc-900;
   }
 
-  /* Cards / tiles */
   .card {
-    @apply bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-sm;
+    @apply bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-sm;
   }
 
   .tile {
-    @apply px-4 py-3 min-w-[120px] rounded-xl border border-gray-200 dark:border-zinc-700 shadow-sm transition-colors cursor-pointer select-none bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800;
+    @apply px-4 py-3 min-w-[120px] rounded-xl border shadow-sm cursor-pointer select-none bg-white hover:bg-zinc-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:border-zinc-700;
   }
 
-  /* Buttons */
   .btn {
     @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-semibold transition-colors;
   }
@@ -46,18 +58,17 @@
   }
 
   .btn-ghost {
-    @apply btn bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200;
+    @apply btn bg-transparent hover:bg-zinc-100 text-zinc-800 dark:hover:bg-zinc-800 dark:text-zinc-100;
   }
 
   .btn-outline {
-    @apply btn border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 hover:bg-gray-50 dark:hover:bg-zinc-800;
+    @apply btn border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700;
   }
 
   .btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700;
   }
 
-  /* Pills / badges */
   .pill {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
   }
@@ -70,16 +81,14 @@
     @apply pill bg-indigo-600 text-white;
   }
 
-  /* Form controls */
   .input {
-    @apply border border-gray-300 dark:border-zinc-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-zinc-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
+    @apply border border-gray-300 dark:border-zinc-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-zinc-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
   }
 
   .select {
-    @apply border border-gray-300 dark:border-zinc-600 rounded-md px-2 py-1 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-500;
+    @apply border border-gray-300 dark:border-zinc-600 rounded-md px-2 py-1 text-sm bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500;
   }
 
-  /* Nav link helper */
   .nav-link {
     @apply text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium;
   }

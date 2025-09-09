@@ -1,6 +1,7 @@
-// Tailwind v4: use the new bundled PostCSS plugin
+// Tailwind v3 PostCSS setup
 export default {
     plugins: {
-        "@tailwindcss/postcss": {},
+        tailwindcss: {},
+        autoprefixer: {},
     },
 };
