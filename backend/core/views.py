@@ -4,7 +4,7 @@ import requests
 
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q  # Sum removed (no minutes aggregation here)
+from django.db.models import Count, Q, Avg
 
 from rest_framework import status, viewsets, permissions
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
@@ -84,6 +84,7 @@ def public_profile(request, username: str):
     """
     Public read-only profile for a given username.
     Returns user basics, aggregate stats (no minutes), and entries (with slim game info).
+    Also exposes average score across entries and per-entry score.
     """
     User = get_user_model()
     try:
@@ -98,7 +99,7 @@ def public_profile(request, username: str):
         .order_by("-updated_at")
     )
 
-    # aggregate counts only (no minutes)
+    # aggregate counts + average score (NULL scores are ignored by Avg)
     stats = qs.aggregate(
         total=Count("id"),
         planning=Count("id", filter=Q(status=GameEntry.Status.PLANNING)),
@@ -106,7 +107,11 @@ def public_profile(request, username: str):
         paused=Count("id", filter=Q(status=GameEntry.Status.PAUSED)),
         dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
         completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
+        avg_score=Avg("score"),
     )
+    # round avg_score to 1 decimal for display friendliness
+    if stats["avg_score"] is not None:
+        stats["avg_score"] = round(float(stats["avg_score"]), 1)
 
     entries = PublicEntrySerializer(qs, many=True).data
 

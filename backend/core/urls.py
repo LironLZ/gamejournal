@@ -34,6 +34,6 @@ urlpatterns = [
     path('', include(router.urls)),
     path('', include(nested.urls)),
 
-    # public profile
+    # public profile (read-only, no auth)
     path("users/<str:username>/", views.public_profile, name="public-profile"),
 ]
