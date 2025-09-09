@@ -101,4 +101,5 @@ class PublicEntrySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GameEntry
-        fields = ("id", "status", "updated_at", "game")  # 👈 no minutes here
+        # include score + updated_at so public page can sort & show score
+        fields = ("id", "status", "updated_at", "score", "game")

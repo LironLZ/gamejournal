@@ -1,7 +1,13 @@
 [build]
-  base = "frontend"
-  command = "npm run build"
-  publish = "dist"
+# Build the app from the frontend/ directory
+base = "frontend"
+publish = "dist"
+# Ensure a clean install before build (uses package-lock)
+command = "npm ci && npm run build"
+
+[build.environment]
+# Pin a Node version compatible with your local setup & Vite
+NODE_VERSION = "20.19.0"
 
 # React Router / SPA fallback
 [[redirects]]
