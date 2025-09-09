@@ -6,18 +6,29 @@ import api from "../api";
 type Entry = {
     id: number;
     status: "PLANNING" | "PLAYING" | "PAUSED" | "DROPPED" | "COMPLETED";
-    total_minutes: number;
     game: { id: number; title: string; release_year?: number | null; cover_url?: string | null };
 };
 
+// Matches your backend now:
+// 200 OK -> { user: { username, joined }, stats: {...}, entries: [...] }
+// 404 -> { detail: "User not found." }
 type ProfilePayload =
-    | { ok: true; username: string; stats: { total: number; completed: number; playing: number; minutes: number }; entries: Entry[] }
-    | { ok: false; detail: string };
+    | {
+        user: { username: string; joined: string };
+        stats: {
+            total: number;
+            planning: number;
+            playing: number;
+            paused: number;
+            dropped: number;
+            completed: number;
+        };
+        entries: Entry[];
+    }
+    | { detail: string };
 
 export default function PublicProfile() {
-    // ✅ type the params so TS knows the key exists
     const { username = "" } = useParams<{ username: string }>();
-
     const [data, setData] = useState<ProfilePayload | null>(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState("");
@@ -28,7 +39,6 @@ export default function PublicProfile() {
             try {
                 setLoading(true);
                 setErr("");
-                // ✅ avoid shadowing "data" state
                 const resp = await api.get<ProfilePayload>(`/users/${encodeURIComponent(username)}/`);
                 if (!mounted) return;
                 setData(resp.data);
@@ -48,25 +58,43 @@ export default function PublicProfile() {
     if (loading) return <div style={{ padding: 24 }}>Loading…</div>;
     if (err) return <div style={{ padding: 24, color: "#c00" }}>Error: {err}</div>;
     if (!data) return <div style={{ padding: 24 }}>No data.</div>;
+
+    // Error payload
     if ("detail" in data) {
         return <div style={{ padding: 24, color: "#c00" }}>{data.detail}</div>;
     }
 
+    // Success payload
+    const { user, stats, entries } = data;
 
-    const { stats, entries } = data;
+    // Pretty “Joined” date
+    const joinedPretty = new Date(user.joined).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+    });
 
     return (
         <div style={{ maxWidth: 960, margin: "24px auto", padding: "0 12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <h2 style={{ margin: 0 }}>{data.username}&nbsp;·&nbsp;Public Profile</h2>
+                <div>
+                    <h2 style={{ margin: 0 }}>
+                        {user.username} · Public Profile
+                    </h2>
+                    <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
+                        Joined: <b>{joinedPretty}</b>
+                    </div>
+                </div>
                 <Link to="/entries">Back to app</Link>
             </div>
 
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "16px 0 24px" }}>
                 <Stat label="Total" value={stats.total} />
+                <Stat label="Planning" value={stats.planning} />
                 <Stat label="Playing" value={stats.playing} />
+                <Stat label="Paused" value={stats.paused} />
+                <Stat label="Dropped" value={stats.dropped} />
                 <Stat label="Completed" value={stats.completed} />
-                <Stat label="Minutes" value={stats.minutes} />
             </div>
 
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -78,19 +106,14 @@ export default function PublicProfile() {
                                     src={en.game.cover_url}
                                     alt={en.game.title}
                                     style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6 }}
-                                    onError={(e) => {
-                                        // keep it simple to avoid TS noise
-                                        (e.currentTarget as HTMLImageElement).style.display = "none";
-                                    }}
+                                    onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
                                 />
                             ) : null}
                             <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 700 }}>
                                     {en.game.title} {en.game.release_year ? `(${en.game.release_year})` : ""}
                                 </div>
-                                <div style={{ fontSize: 12, opacity: 0.7 }}>
-                                    Status: {en.status} • Minutes: {en.total_minutes}
-                                </div>
+                                <div style={{ fontSize: 12, opacity: 0.7 }}>Status: {en.status}</div>
                             </div>
                         </div>
                     </li>
