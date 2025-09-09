@@ -1,4 +1,3 @@
-// frontend/src/pages/Entries.tsx
 import { useEffect, useRef, useState } from "react";
 import api from "../api";
 
@@ -7,7 +6,6 @@ type Status = "PLANNING" | "PLAYING" | "PAUSED" | "DROPPED" | "COMPLETED";
 type Entry = {
     id: number;
     status: Status;
-    // total_minutes: number; // removed
     score?: number | null;
     notes?: string;
     started_at?: string | null;
@@ -27,7 +25,6 @@ type Stats = {
     paused: number;
     dropped: number;
     completed: number;
-    // total_minutes: number; // removed
 };
 
 type GameLite = {
@@ -41,14 +38,70 @@ type GameLite = {
 
 const STATUSES: Status[] = ["PLANNING", "PLAYING", "PAUSED", "DROPPED", "COMPLETED"];
 
+/** shared palette for statuses (used by badges & tiles) */
+function statusStyles(s: Status): React.CSSProperties {
+    const base: React.CSSProperties = {
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        border: "1px solid transparent",
+    };
+    switch (s) {
+        case "PLAYING":
+            return { ...base, background: "#eef7ff", color: "#0b6bcb", borderColor: "#cfe6ff" };
+        case "PLANNING":
+            return { ...base, background: "#f7f7ff", color: "#5b5bd6", borderColor: "#e3e3ff" };
+        case "PAUSED":
+            return { ...base, background: "#fff7e6", color: "#aa6a00", borderColor: "#ffe7bf" };
+        case "DROPPED":
+            return { ...base, background: "#fff0f0", color: "#b01e1e", borderColor: "#ffd7d7" };
+        case "COMPLETED":
+            return { ...base, background: "#ecfbf1", color: "#1d7a45", borderColor: "#c9f0d7" };
+        default:
+            return base;
+    }
+}
+
+function StatusBadge({ s }: { s: Status }) {
+    return <span style={statusStyles(s)}>{s}</span>;
+}
+
+/** tile styling helper (ALL = neutral grey) */
+function tileStyle(kind: "ALL" | Status, active = false): React.CSSProperties {
+    if (kind === "ALL") {
+        return {
+            padding: 10,
+            borderRadius: 8,
+            minWidth: 110,
+            border: "1px solid #e5e7eb",
+            background: active ? "#f4f4f5" : "#fff",
+            boxShadow: active ? "0 1px 0 rgba(17,24,39,.03)" : "none",
+            cursor: "pointer",
+        };
+    }
+    const s = statusStyles(kind);
+    return {
+        padding: 10,
+        borderRadius: 8,
+        minWidth: 110,
+        border: `1px solid ${s.borderColor as string}`,
+        background: active ? (s.background as string) : "#fff",
+        color: active ? (s.color as string) : "inherit",
+        boxShadow: active ? "0 1px 0 rgba(17,24,39,.03)" : "none",
+        cursor: "pointer",
+    };
+}
+
 export default function Entries() {
     const [entries, setEntries] = useState<Entry[]>([]);
     const [stats, setStats] = useState<Stats | null>(null);
 
-    // --- NEW: status filter ---
+    // status filter (driven by tiles too)
     const [filter, setFilter] = useState<"ALL" | Status>("ALL");
 
-    // --- search state (RAWG via backend) ---
+    // search state (RAWG via backend)
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<GameLite[]>([]);
     const [showDrop, setShowDrop] = useState(false);
@@ -58,14 +111,14 @@ export default function Entries() {
     const dropdownRef = useRef<HTMLDivElement | null>(null);
     const debounceRef = useRef<number | null>(null);
 
-    // --- per-entry edit state (includes dates) ---
+    // per-entry edit state (includes dates)
     type EditState = { score: string; notes: string; started_at: string; finished_at: string };
     const [entryEdits, setEntryEdits] = useState<Record<number, EditState>>({});
 
     async function loadEntries() {
         const { data } = await api.get("/entries/");
         setEntries(data);
-        // seed edit map with server values (as strings for inputs)
+        // seed edits
         const seeded: Record<number, EditState> = {};
         for (const en of data as Entry[]) {
             seeded[en.id] = {
@@ -95,7 +148,7 @@ export default function Entries() {
         refresh();
     }, []);
 
-    // --- debounced RAWG search via backend proxy ---
+    // debounced RAWG search via backend proxy
     useEffect(() => {
         if (debounceRef.current) window.clearTimeout(debounceRef.current);
         if (!query || query.trim().length < 2) {
@@ -104,9 +157,7 @@ export default function Entries() {
         }
         debounceRef.current = window.setTimeout(async () => {
             try {
-                const { data } = await api.get<GameLite[]>("/search/games/", {
-                    params: { q: query.trim() },
-                });
+                const { data } = await api.get<GameLite[]>("/search/games/", { params: { q: query.trim() } });
                 setResults(data.slice(0, 8));
                 setShowDrop(true);
             } catch {
@@ -171,10 +222,7 @@ export default function Entries() {
     }
 
     function updateEdit(id: number, patch: Partial<EditState>) {
-        setEntryEdits((prev) => ({
-            ...prev,
-            [id]: { ...(prev[id] ?? { score: "", notes: "", started_at: "", finished_at: "" }), ...patch },
-        }));
+        setEntryEdits((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { score: "", notes: "", started_at: "", finished_at: "" }), ...patch } }));
     }
 
     function resetEdit(id: number) {
@@ -210,7 +258,6 @@ export default function Entries() {
         const started_at = edit.started_at.trim() === "" ? null : edit.started_at.trim();
         const finished_at = edit.finished_at.trim() === "" ? null : edit.finished_at.trim();
 
-        // simple client check
         if (started_at && finished_at && finished_at < started_at) {
             setMsg("Finish date cannot be before start date.");
             return;
@@ -230,7 +277,7 @@ export default function Entries() {
         refresh();
     }
 
-    // --- NEW: derive filtered list & average score (client-side) ---
+    // filtered list & average score
     const filteredEntries = filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
     const scored = entries.map((e) => e.score).filter((s): s is number => typeof s === "number");
     const avgScore = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : null;
@@ -243,23 +290,57 @@ export default function Entries() {
                 <button onClick={refresh}>Refresh</button>
             </div>
 
-            {/* Stats bar */}
+            {/* Stats bar — CLICKABLE, COLORED TILES */}
             {stats ? (
                 <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "12px 0" }}>
-                    {[
-                        ["Total", stats.total],
-                        ["Planning", stats.planning],
-                        ["Playing", stats.playing],
-                        ["Paused", stats.paused],
-                        ["Dropped", stats.dropped],
-                        ["Completed", stats.completed],
-                        ["Avg score", avgScoreText], // NEW
-                    ].map(([label, val]) => (
-                        <div key={label as string} style={{ padding: 10, border: "1px solid #ddd", borderRadius: 8, minWidth: 110 }}>
+                    {/* Total -> ALL */}
+                    <div
+                        role="button"
+                        onClick={() => setFilter("ALL")}
+                        style={tileStyle("ALL", filter === "ALL")}
+                        title="Show all entries"
+                    >
+                        <div style={{ fontSize: 12, opacity: 0.7 }}>Total</div>
+                        <div style={{ fontWeight: 700, fontSize: 18 }}>{stats.total}</div>
+                    </div>
+
+                    {/* Each status */}
+                    {([
+                        ["Planning", "PLANNING"],
+                        ["Playing", "PLAYING"],
+                        ["Paused", "PAUSED"],
+                        ["Dropped", "DROPPED"],
+                        ["Completed", "COMPLETED"],
+                    ] as const).map(([label, key]) => (
+                        <div
+                            key={key}
+                            role="button"
+                            onClick={() => setFilter(key)}
+                            style={tileStyle(key, filter === key)}
+                            title={`Show ${label.toLowerCase()} entries`}
+                        >
                             <div style={{ fontSize: 12, opacity: 0.7 }}>{label}</div>
-                            <div style={{ fontWeight: 700, fontSize: 18 }}>{val as number | string}</div>
+                            <div style={{ fontWeight: 700, fontSize: 18 }}>
+                                {key === "PLANNING" && stats.planning}
+                                {key === "PLAYING" && stats.playing}
+                                {key === "PAUSED" && stats.paused}
+                                {key === "DROPPED" && stats.dropped}
+                                {key === "COMPLETED" && stats.completed}
+                            </div>
                         </div>
                     ))}
+
+                    {/* Avg score tile (neutral) */}
+                    <div
+                        style={{
+                            ...tileStyle("ALL", false),
+                            cursor: "default",
+                        }}
+                        title="Average of non-empty scores"
+                    >
+                        <div style={{ fontSize: 12, opacity: 0.7 }}>Avg score</div>
+                        <div style={{ fontWeight: 700, fontSize: 18 }}>{avgScoreText}</div>
+                    </div>
                 </div>
             ) : (
                 <div style={{ margin: "8px 0", fontSize: 12, opacity: 0.7 }}>Stats not loaded (log in?).</div>
@@ -357,33 +438,21 @@ export default function Entries() {
 
             <div style={{ color: "#555" }}>{msg}</div>
 
-            {/* NEW: Filter bar */}
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
-                <span style={{ fontSize: 12, opacity: 0.7 }}>Filter:</span>
-                {(["ALL", ...STATUSES] as const).map((opt) => (
-                    <button
-                        key={opt}
-                        type="button"
-                        onClick={() => setFilter(opt)}
-                        style={{
-                            padding: "6px 10px",
-                            border: "1px solid #ddd",
-                            borderRadius: 8,
-                            background: filter === opt ? "#f2f2ff" : "#fff",
-                            fontWeight: filter === opt ? 700 as const : 400 as const,
-                        }}
-                    >
-                        {opt}
-                    </button>
-                ))}
-            </div>
-
             {/* List */}
             <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>
                 {filteredEntries.map((en) => {
                     const edit = entryEdits[en.id] ?? { score: "", notes: "", started_at: "", finished_at: "" };
                     return (
-                        <li key={en.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 8 }}>
+                        <li
+                            key={en.id}
+                            style={{
+                                border: "1px solid #ddd",
+                                borderRadius: 8,
+                                padding: 12,
+                                marginBottom: 8,
+                                boxShadow: "0 1px 0 rgba(17,24,39,.03)", // subtle shadow
+                            }}
+                        >
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                                     {en.game.cover_url ? (
@@ -400,8 +469,8 @@ export default function Entries() {
                                     ) : null}
                                     <div>
                                         <div style={{ fontWeight: 600 }}>{en.game.title}</div>
-                                        <div style={{ fontSize: 12, opacity: 0.7 }}>
-                                            Status: {en.status}
+                                        <div style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                                            <span style={{ opacity: 0.7 }}>Status:</span> <StatusBadge s={en.status} />
                                         </div>
                                     </div>
                                 </div>
