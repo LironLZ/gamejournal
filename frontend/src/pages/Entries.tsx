@@ -45,6 +45,9 @@ export default function Entries() {
     const [entries, setEntries] = useState<Entry[]>([]);
     const [stats, setStats] = useState<Stats | null>(null);
 
+    // --- NEW: status filter ---
+    const [filter, setFilter] = useState<"ALL" | Status>("ALL");
+
     // --- search state (RAWG via backend) ---
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<GameLite[]>([]);
@@ -227,6 +230,12 @@ export default function Entries() {
         refresh();
     }
 
+    // --- NEW: derive filtered list & average score (client-side) ---
+    const filteredEntries = filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
+    const scored = entries.map((e) => e.score).filter((s): s is number => typeof s === "number");
+    const avgScore = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : null;
+    const avgScoreText: string = avgScore === null ? "—" : (Math.round(avgScore * 10) / 10).toFixed(1);
+
     return (
         <div style={{ maxWidth: 900, margin: "30px auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -244,10 +253,11 @@ export default function Entries() {
                         ["Paused", stats.paused],
                         ["Dropped", stats.dropped],
                         ["Completed", stats.completed],
+                        ["Avg score", avgScoreText], // NEW
                     ].map(([label, val]) => (
                         <div key={label as string} style={{ padding: 10, border: "1px solid #ddd", borderRadius: 8, minWidth: 110 }}>
                             <div style={{ fontSize: 12, opacity: 0.7 }}>{label}</div>
-                            <div style={{ fontWeight: 700, fontSize: 18 }}>{val as number}</div>
+                            <div style={{ fontWeight: 700, fontSize: 18 }}>{val as number | string}</div>
                         </div>
                     ))}
                 </div>
@@ -347,9 +357,30 @@ export default function Entries() {
 
             <div style={{ color: "#555" }}>{msg}</div>
 
+            {/* NEW: Filter bar */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>Filter:</span>
+                {(["ALL", ...STATUSES] as const).map((opt) => (
+                    <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setFilter(opt)}
+                        style={{
+                            padding: "6px 10px",
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            background: filter === opt ? "#f2f2ff" : "#fff",
+                            fontWeight: filter === opt ? 700 as const : 400 as const,
+                        }}
+                    >
+                        {opt}
+                    </button>
+                ))}
+            </div>
+
             {/* List */}
             <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>
-                {entries.map((en) => {
+                {filteredEntries.map((en) => {
                     const edit = entryEdits[en.id] ?? { score: "", notes: "", started_at: "", finished_at: "" };
                     return (
                         <li key={en.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 8 }}>
@@ -454,7 +485,7 @@ export default function Entries() {
                 })}
             </ul>
 
-            {entries.length === 0 && <p>No entries yet.</p>}
+            {filteredEntries.length === 0 && <p>No entries match this filter.</p>}
         </div>
     );
 }
