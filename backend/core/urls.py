@@ -33,5 +33,7 @@ urlpatterns = [
     # resources
     path('', include(router.urls)),
     path('', include(nested.urls)),
+
+    # public profile
     path("users/<str:username>/", views.public_profile, name="public-profile"),
 ]

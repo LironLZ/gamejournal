@@ -1,11 +1,10 @@
 # core/views.py
 import os
 import requests
-from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from django.db.models import Sum, Count, Q
+from django.db.models import Count, Q  # Sum removed (no minutes aggregation here)
 
 from rest_framework import status, viewsets, permissions
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
@@ -61,6 +60,10 @@ def whoami(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def my_stats(request):
+    """
+    Private dashboard stats for the authenticated user.
+    Minutes have been removed by design.
+    """
     qs = GameEntry.objects.filter(user=request.user)
     data = {
         "total": qs.count(),
@@ -69,8 +72,7 @@ def my_stats(request):
         "paused": qs.filter(status=GameEntry.Status.PAUSED).count(),
         "dropped": qs.filter(status=GameEntry.Status.DROPPED).count(),
         "completed": qs.filter(status=GameEntry.Status.COMPLETED).count(),
-        "total_minutes": PlaySession.objects.filter(entry__user=request.user)
-                                            .aggregate(s=Sum('duration_min'))['s'] or 0,
+        # "total_minutes": ...  # removed
     }
     return Response(data)
 
@@ -81,7 +83,7 @@ def my_stats(request):
 def public_profile(request, username: str):
     """
     Public read-only profile for a given username.
-    Returns user basics, aggregate stats, and entries (with game info).
+    Returns user basics, aggregate stats (no minutes), and entries (with slim game info).
     """
     User = get_user_model()
     try:
@@ -96,6 +98,7 @@ def public_profile(request, username: str):
         .order_by("-updated_at")
     )
 
+    # aggregate counts only (no minutes)
     stats = qs.aggregate(
         total=Count("id"),
         planning=Count("id", filter=Q(status=GameEntry.Status.PLANNING)),
@@ -103,9 +106,7 @@ def public_profile(request, username: str):
         paused=Count("id", filter=Q(status=GameEntry.Status.PAUSED)),
         dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
         completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
-        total_minutes=Sum("sessions__duration_min"),
     )
-    stats["total_minutes"] = stats["total_minutes"] or 0
 
     entries = PublicEntrySerializer(qs, many=True).data
 
