@@ -7,11 +7,11 @@ type Status = "PLANNING" | "PLAYING" | "PAUSED" | "DROPPED" | "COMPLETED";
 type Entry = {
     id: number;
     status: Status;
-    total_minutes: number;
+    // total_minutes: number; // removed
     score?: number | null;
     notes?: string;
-    started_at?: string | null;   // <-- add
-    finished_at?: string | null;  // <-- add
+    started_at?: string | null;
+    finished_at?: string | null;
     game: {
         id: number;
         title: string;
@@ -27,7 +27,7 @@ type Stats = {
     paused: number;
     dropped: number;
     completed: number;
-    total_minutes: number;
+    // total_minutes: number; // removed
 };
 
 type GameLite = {
@@ -55,7 +55,7 @@ export default function Entries() {
     const dropdownRef = useRef<HTMLDivElement | null>(null);
     const debounceRef = useRef<number | null>(null);
 
-    // --- per-entry edit state (now includes dates) ---
+    // --- per-entry edit state (includes dates) ---
     type EditState = { score: string; notes: string; started_at: string; finished_at: string };
     const [entryEdits, setEntryEdits] = useState<Record<number, EditState>>({});
 
@@ -168,7 +168,10 @@ export default function Entries() {
     }
 
     function updateEdit(id: number, patch: Partial<EditState>) {
-        setEntryEdits((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { score: "", notes: "", started_at: "", finished_at: "" }), ...patch } }));
+        setEntryEdits((prev) => ({
+            ...prev,
+            [id]: { ...(prev[id] ?? { score: "", notes: "", started_at: "", finished_at: "" }), ...patch },
+        }));
     }
 
     function resetEdit(id: number) {
@@ -204,7 +207,7 @@ export default function Entries() {
         const started_at = edit.started_at.trim() === "" ? null : edit.started_at.trim();
         const finished_at = edit.finished_at.trim() === "" ? null : edit.finished_at.trim();
 
-        // simple client check (server also validates if you added the validator)
+        // simple client check
         if (started_at && finished_at && finished_at < started_at) {
             setMsg("Finish date cannot be before start date.");
             return;
@@ -241,7 +244,6 @@ export default function Entries() {
                         ["Paused", stats.paused],
                         ["Dropped", stats.dropped],
                         ["Completed", stats.completed],
-                        ["Minutes", stats.total_minutes],
                     ].map(([label, val]) => (
                         <div key={label as string} style={{ padding: 10, border: "1px solid #ddd", borderRadius: 8, minWidth: 110 }}>
                             <div style={{ fontSize: 12, opacity: 0.7 }}>{label}</div>
@@ -368,7 +370,7 @@ export default function Entries() {
                                     <div>
                                         <div style={{ fontWeight: 600 }}>{en.game.title}</div>
                                         <div style={{ fontSize: 12, opacity: 0.7 }}>
-                                            Status: {en.status} • Minutes: {en.total_minutes}
+                                            Status: {en.status}
                                         </div>
                                     </div>
                                 </div>
