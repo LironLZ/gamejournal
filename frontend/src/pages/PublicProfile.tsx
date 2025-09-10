@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import api from "../api";
+import StatusBadge from "../components/StatusBadge";
 
 type Status = "PLANNING" | "PLAYING" | "PAUSED" | "DROPPED" | "COMPLETED";
 
@@ -13,32 +14,17 @@ type Entry = {
 type ProfilePayload =
     | {
         user: { username: string; joined: string };
-        stats: { total: number; planning: number; playing: number; paused: number; dropped: number; completed: number };
+        stats: {
+            total: number;
+            planning: number;
+            playing: number;
+            paused: number;
+            dropped: number;
+            completed: number;
+        };
         entries: Entry[];
     }
     | { detail: string };
-
-/* Tailwind status badge (with dark variants) */
-const BADGE: Record<Status, string> = {
-    PLAYING:
-        "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
-    PLANNING:
-        "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
-    PAUSED:
-        "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
-    DROPPED:
-        "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
-    COMPLETED:
-        "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
-};
-
-function StatusBadge({ s }: { s: Status }) {
-    return (
-        <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>
-            {s}
-        </span>
-    );
-}
 
 export default function PublicProfile() {
     const { username = "" } = useParams<{ username: string }>();
@@ -93,15 +79,17 @@ export default function PublicProfile() {
                         Joined <b>{joinedPretty}</b>
                     </div>
                 </div>
-                <Link to="/entries" className="nav-link">Back to app</Link>
+                <Link to="/entries" className="nav-link">
+                    Back to app
+                </Link>
             </div>
 
-            {/* Stat tiles (readable in dark) */}
+            {/* Stat tiles (brand highlight) */}
             <div className="flex gap-4 flex-wrap my-4">
                 <button
                     type="button"
                     onClick={() => setFilter("ALL")}
-                    className={`tile ${filter === "ALL" ? "ring-1 ring-indigo-400" : ""}`}
+                    className={`tile ${filter === "ALL" ? "tile-active" : ""}`}
                     title="Show all entries"
                 >
                     <div className="stat-label">Total</div>
@@ -119,7 +107,7 @@ export default function PublicProfile() {
                         key={key}
                         type="button"
                         onClick={() => setFilter(key)}
-                        className={`tile ${filter === key ? "ring-1 ring-indigo-400" : ""}`}
+                        className={`tile ${filter === key ? "tile-active" : ""}`}
                         title={`Show ${label.toLowerCase()} entries`}
                     >
                         <div className="stat-label">{label}</div>

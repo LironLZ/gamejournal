@@ -2,10 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ----- Base layer (light/dark & reset) ----- */
+/* ---------------- Base (light/dark + sensible defaults) ---------------- */
 @layer base {
 
-  /* remove Vite demo layout rules */
+  /* kill leftover Vite demo layout rules */
   body {
     display: block;
     place-items: unset;
@@ -20,11 +20,12 @@
     @apply h-full m-0 bg-gray-50 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100;
   }
 
+  /* Brand links */
   a {
-    @apply text-indigo-600 hover:text-indigo-800 underline-offset-2 dark:text-indigo-400 dark:hover:text-indigo-300;
+    @apply text-brand-600 hover:text-brand-800 underline-offset-2 dark:text-brand-400 dark:hover:text-brand-300;
   }
 
-  /* Auto-style form fields everywhere */
+  /* Form fields */
   input[type="text"],
   input[type="number"],
   input[type="date"],
@@ -32,55 +33,58 @@
   input[type="search"],
   select,
   textarea {
-    @apply w-full border border-gray-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-sm px-3 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
+    @apply w-full border border-gray-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-sm px-3 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500;
   }
 
-  /* Buttons: sensible default (you can still use .btn-* for fancy ones) */
+  /* Base button look (others build on this) */
   button {
     @apply inline-flex items-center gap-2 text-sm font-semibold rounded-md border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-zinc-700;
   }
 }
 
-/* ----- Components (reusable tokens) ----- */
+/* ---------------- Components (semantic tokens) ---------------- */
 @layer components {
 
-  /* A surface always has readable bg/text in both themes */
-  .surface {
-    @apply bg-white text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100;
-  }
-
+  /* Page container / card / tile */
   .container-page {
-    @apply max-w-[960px] mx-auto mt-6 px-3 min-h-screen surface;
+    @apply max-w-[960px] mx-auto mt-6 px-3 min-h-screen bg-gray-50 dark:bg-zinc-900;
   }
 
   .card {
-    @apply surface border border-gray-200 dark:border-zinc-700 rounded-xl shadow-sm;
+    @apply bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-card;
   }
 
+  /* Neutral tile; add ring on active/hover */
   .tile {
-    @apply surface px-4 py-3 min-w-[120px] rounded-xl border border-gray-200 dark:border-zinc-700 shadow-sm;
+    @apply px-4 py-3 min-w-[120px] rounded-xl border shadow-sm cursor-pointer select-none bg-white dark:bg-zinc-800 border-gray-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700;
   }
 
+  .tile-active {
+    @apply ring-2 ring-brand-500;
+  }
+
+  /* Buttons */
   .btn {
     @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-semibold transition-colors;
   }
 
   .btn-primary {
-    @apply btn bg-indigo-600 text-white hover:bg-indigo-700;
-  }
-
-  .btn-ghost {
-    @apply btn bg-transparent hover:bg-zinc-100 text-zinc-800 dark:hover:bg-zinc-800 dark:text-zinc-100;
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
   }
 
   .btn-outline {
     @apply btn border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700;
   }
 
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-zinc-100 text-zinc-800 dark:hover:bg-zinc-800 dark:text-zinc-100;
+  }
+
   .btn-danger {
     @apply btn bg-crimson-600 text-white hover:bg-crimson-700;
   }
 
+  /* Pills / badges */
   .pill {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
   }
@@ -89,24 +93,41 @@
     @apply pill bg-crimson-600 text-white;
   }
 
-  .pill-indigo {
-    @apply pill bg-indigo-600 text-white;
+  .pill-brand {
+    @apply pill bg-brand-600 text-white;
   }
 
+  /* alias for previous .pill-indigo */
   .nav-link {
-    @apply text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium;
+    @apply text-brand-600 hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-300 font-medium;
   }
 
   .muted {
-    @apply text-zinc-600 dark:text-zinc-400;
+    @apply text-zinc-500 dark:text-zinc-400;
   }
 
-  /* readable labels/numbers inside stat tiles */
-  .stat-label {
-    @apply text-xs text-zinc-600 dark:text-zinc-400;
+  /* ---------- Status Badges (work in both themes) ---------- */
+  .badge {
+    @apply inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full border;
   }
 
-  .stat-value {
-    @apply text-lg font-bold text-zinc-900 dark:text-zinc-50;
+  .badge-playing {
+    @apply badge bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700;
+  }
+
+  .badge-planning {
+    @apply badge bg-brand-50 text-brand-700 border-brand-200 dark:bg-brand-900/30 dark:text-brand-300 dark:border-brand-700;
+  }
+
+  .badge-paused {
+    @apply badge bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700;
+  }
+
+  .badge-dropped {
+    @apply badge bg-crimson-50 text-crimson-700 border-crimson-200 dark:bg-crimson-900/30 dark:text-crimson-300 dark:border-crimson-700;
+  }
+
+  .badge-completed {
+    @apply badge bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700;
   }
 }

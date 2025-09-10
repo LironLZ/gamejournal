@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../api";
+import StatusBadge from "../components/StatusBadge";
 
 type Status = "PLANNING" | "PLAYING" | "PAUSED" | "DROPPED" | "COMPLETED";
 
@@ -37,28 +38,6 @@ type GameLite = {
 };
 
 const STATUSES: Status[] = ["PLANNING", "PLAYING", "PAUSED", "DROPPED", "COMPLETED"];
-
-/* Tailwind badges for statuses */
-const BADGE: Record<Status, string> = {
-    PLAYING:
-        "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
-    PLANNING:
-        "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
-    PAUSED:
-        "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
-    DROPPED:
-        "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
-    COMPLETED:
-        "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
-};
-
-function StatusBadge({ s }: { s: Status }) {
-    return (
-        <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>
-            {s}
-        </span>
-    );
-}
 
 export default function Entries() {
     const [entries, setEntries] = useState<Entry[]>([]);
@@ -264,7 +243,7 @@ export default function Entries() {
                     <button
                         type="button"
                         onClick={() => setFilter("ALL")}
-                        className={`tile ${filter === "ALL" ? "ring-1 ring-indigo-400" : ""}`}
+                        className={`tile ${filter === "ALL" ? "tile-active" : ""}`}
                         title="Show all entries"
                     >
                         <div className="stat-label">Total</div>
@@ -282,7 +261,7 @@ export default function Entries() {
                             key={key}
                             type="button"
                             onClick={() => setFilter(key)}
-                            className={`tile ${filter === key ? "ring-1 ring-indigo-400" : ""}`}
+                            className={`tile ${filter === key ? "tile-active" : ""}`}
                             title={`Show ${label.toLowerCase()} entries`}
                         >
                             <div className="stat-label">{label}</div>
@@ -315,7 +294,9 @@ export default function Entries() {
                             setQuery(e.target.value);
                             setSelected(null);
                         }}
-                        onFocus={() => { if (results.length > 0) setShowDrop(true); }}
+                        onFocus={() => {
+                            if (results.length > 0) setShowDrop(true);
+                        }}
                         className="w-[300px]"
                     />
                     {showDrop && results.length > 0 && (
@@ -334,7 +315,9 @@ export default function Entries() {
                                             width={44}
                                             height={26}
                                             className="object-cover rounded border border-gray-200 dark:border-zinc-700"
-                                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                            onError={(e) => {
+                                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                                            }}
                                         />
                                     ) : null}
                                     <div>
@@ -358,7 +341,9 @@ export default function Entries() {
                     ))}
                 </select>
 
-                <button type="submit" className="btn-primary">Add</button>
+                <button type="submit" className="btn-primary">
+                    Add
+                </button>
             </form>
 
             {selected && (
@@ -388,7 +373,9 @@ export default function Entries() {
                                             width={80}
                                             height={45}
                                             className="object-cover rounded border border-gray-200 dark:border-zinc-700"
-                                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                            onError={(e) => {
+                                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                                            }}
                                         />
                                     ) : null}
                                     <div>
@@ -400,14 +387,20 @@ export default function Entries() {
                                 </div>
 
                                 <div className="flex gap-2">
-                                    <select value={en.status} onChange={(e) => updateStatus(en.id, e.target.value as Status)} className="w-[160px]">
+                                    <select
+                                        value={en.status}
+                                        onChange={(e) => updateStatus(en.id, e.target.value as Status)}
+                                        className="w-[160px]"
+                                    >
                                         {STATUSES.map((s) => (
                                             <option key={s} value={s}>
                                                 {s}
                                             </option>
                                         ))}
                                     </select>
-                                    <button className="btn-danger" onClick={() => remove(en.id)}>Delete</button>
+                                    <button className="btn-danger" onClick={() => remove(en.id)}>
+                                        Delete
+                                    </button>
                                 </div>
                             </div>
 
@@ -469,7 +462,9 @@ export default function Entries() {
                                 </div>
 
                                 <div className="flex gap-2 items-end justify-end">
-                                    <button onClick={() => saveAll(en.id)} className="btn-primary">Save</button>
+                                    <button onClick={() => saveAll(en.id)} className="btn-primary">
+                                        Save
+                                    </button>
                                     <button type="button" onClick={() => resetEdit(en.id)} className="btn-outline">
                                         Reset
                                     </button>

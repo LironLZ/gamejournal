@@ -6,8 +6,9 @@ module.exports = {
     content: ['./index.html', './src/**/*.{ts,tsx,js,jsx}'],
     theme: {
         extend: {
-            // "crimson" = Tailwind's rose palette so we can write bg-crimson-600, etc.
             colors: {
+                // Brand + Accent
+                brand: colors.indigo,
                 crimson: colors.rose,
             },
             boxShadow: {
@@ -15,5 +16,13 @@ module.exports = {
             },
         },
     },
+    // we generate these badge classes by name; safelist ensures they’re not purged
+    safelist: [
+        'badge-playing',
+        'badge-planning',
+        'badge-paused',
+        'badge-dropped',
+        'badge-completed',
+    ],
     plugins: [],
 };
