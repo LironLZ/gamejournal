@@ -18,22 +18,26 @@ type ProfilePayload =
     }
     | { detail: string };
 
-function statusStyles(s: Status): React.CSSProperties {
-    const base: React.CSSProperties = { display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 12, fontWeight: 600, border: "1px solid transparent" };
-    switch (s) {
-        case "PLAYING": return { ...base, background: "#eef7ff", color: "#0b6bcb", borderColor: "#cfe6ff" };
-        case "PLANNING": return { ...base, background: "#f7f7ff", color: "#5b5bd6", borderColor: "#e3e3ff" };
-        case "PAUSED": return { ...base, background: "#fff7e6", color: "#aa6a00", borderColor: "#ffe7bf" };
-        case "DROPPED": return { ...base, background: "#fff0f0", color: "#b01e1e", borderColor: "#ffd7d7" };
-        case "COMPLETED": return { ...base, background: "#ecfbf1", color: "#1d7a45", borderColor: "#c9f0d7" };
-        default: return base;
-    }
-}
-function StatusBadge({ s }: { s: Status }) { return <span style={statusStyles(s)}>{s}</span>; }
-function tileStyle(kind: "ALL" | Status, active = false): React.CSSProperties {
-    if (kind === "ALL") return { padding: 10, borderRadius: 8, minWidth: 110, border: "1px solid #e5e7eb", background: active ? "#f4f4f5" : "#fff", cursor: "pointer" };
-    const s = statusStyles(kind);
-    return { padding: 10, borderRadius: 8, minWidth: 110, border: `1px solid ${s.borderColor as string}`, background: active ? (s.background as string) : "#fff", color: active ? (s.color as string) : "inherit", cursor: "pointer" };
+/* Tailwind status badge (with dark variants) */
+const BADGE: Record<Status, string> = {
+    PLAYING:
+        "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
+    PLANNING:
+        "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    PAUSED:
+        "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
+    DROPPED:
+        "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
+    COMPLETED:
+        "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
+};
+
+function StatusBadge({ s }: { s: Status }) {
+    return (
+        <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>
+            {s}
+        </span>
+    );
 }
 
 export default function PublicProfile() {
@@ -60,34 +64,49 @@ export default function PublicProfile() {
                 if (mounted) setLoading(false);
             }
         })();
-        return () => { mounted = false; };
+        return () => {
+            mounted = false;
+        };
     }, [username]);
 
-    if (loading) return <div style={{ padding: 24 }}>Loading…</div>;
-    if (err) return <div style={{ padding: 24, color: "#c00" }}>Error: {err}</div>;
-    if (!data) return <div style={{ padding: 24 }}>No data.</div>;
-    if ("detail" in data) return <div style={{ padding: 24, color: "#c00" }}>{data.detail}</div>;
+    if (loading) return <div className="p-6">Loading…</div>;
+    if (err) return <div className="p-6 text-crimson-600">Error: {err}</div>;
+    if (!data) return <div className="p-6">No data.</div>;
+    if ("detail" in data) return <div className="p-6 text-crimson-600">{(data as any).detail}</div>;
 
     const { user, stats, entries } = data;
-    const joinedPretty = new Date(user.joined).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
-    const visible = filter === "ALL" ? entries : entries.filter(e => e.status === filter);
+    const joinedPretty = new Date(user.joined).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+    });
+
+    const visible = filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
 
     return (
-        <div style={{ maxWidth: 960, margin: "24px auto", padding: "0 12px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <div className="container-page">
+            {/* Header */}
+            <div className="flex justify-between items-baseline my-2 mb-4">
                 <div>
-                    <h2 style={{ margin: 0 }}>{user.username} · Public Profile</h2>
-                    <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>Joined: <b>{joinedPretty}</b></div>
+                    <h2 className="m-0 text-2xl font-bold">{user.username} · Public Profile</h2>
+                    <div className="text-sm muted mt-1">
+                        Joined <b>{joinedPretty}</b>
+                    </div>
                 </div>
-                <Link to="/entries">Back to app</Link>
+                <Link to="/entries" className="nav-link">Back to app</Link>
             </div>
 
-            {/* CLICKABLE, COLORED TILES */}
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "16px 0 24px" }}>
-                <div role="button" onClick={() => setFilter("ALL")} style={tileStyle("ALL", filter === "ALL")}>
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>Total</div>
-                    <div style={{ fontWeight: 700, fontSize: 18 }}>{stats.total}</div>
-                </div>
+            {/* Stat tiles (readable in dark) */}
+            <div className="flex gap-4 flex-wrap my-4">
+                <button
+                    type="button"
+                    onClick={() => setFilter("ALL")}
+                    className={`tile ${filter === "ALL" ? "ring-1 ring-indigo-400" : ""}`}
+                    title="Show all entries"
+                >
+                    <div className="stat-label">Total</div>
+                    <div className="stat-value">{stats.total}</div>
+                </button>
 
                 {([
                     ["Planning", "PLANNING", stats.planning],
@@ -96,31 +115,39 @@ export default function PublicProfile() {
                     ["Dropped", "DROPPED", stats.dropped],
                     ["Completed", "COMPLETED", stats.completed],
                 ] as const).map(([label, key, val]) => (
-                    <div key={key} role="button" onClick={() => setFilter(key)} style={tileStyle(key, filter === key)}>
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>{label}</div>
-                        <div style={{ fontWeight: 700, fontSize: 18 }}>{val}</div>
-                    </div>
+                    <button
+                        key={key}
+                        type="button"
+                        onClick={() => setFilter(key)}
+                        className={`tile ${filter === key ? "ring-1 ring-indigo-400" : ""}`}
+                        title={`Show ${label.toLowerCase()} entries`}
+                    >
+                        <div className="stat-label">{label}</div>
+                        <div className="stat-value">{val}</div>
+                    </button>
                 ))}
             </div>
 
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {/* List */}
+            <ul className="list-none p-0 m-0">
                 {visible.map((en) => (
-                    <li key={en.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 10, boxShadow: "0 1px 0 rgba(17,24,39,.03)" }}>
-                        <div style={{ display: "flex", gap: 12 }}>
+                    <li key={en.id} className="card p-3 mb-3">
+                        <div className="flex gap-3">
                             {en.game.cover_url ? (
                                 <img
                                     src={en.game.cover_url}
                                     alt={en.game.title}
-                                    style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #eee" }}
+                                    className="w-[72px] h-[72px] object-cover rounded-lg border border-gray-200 dark:border-zinc-700"
                                     onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
                                 />
                             ) : null}
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 700 }}>
+                            <div className="flex-1 min-w-0">
+                                <div className="font-bold text-base leading-tight">
                                     {en.game.title} {en.game.release_year ? `(${en.game.release_year})` : ""}
                                 </div>
-                                <div style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                                    <span style={{ opacity: 0.7 }}>Status:</span> <StatusBadge s={en.status} />
+                                <div className="flex items-center gap-2 mt-1 flex-wrap text-sm">
+                                    <span className="muted text-xs">Status:</span>
+                                    <StatusBadge s={en.status} />
                                 </div>
                             </div>
                         </div>
@@ -128,7 +155,7 @@ export default function PublicProfile() {
                 ))}
             </ul>
 
-            {visible.length === 0 && <p>No entries yet.</p>}
+            {visible.length === 0 && <p className="mt-4">No entries yet.</p>}
         </div>
     );
 }

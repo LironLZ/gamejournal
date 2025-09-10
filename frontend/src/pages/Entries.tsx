@@ -38,60 +38,26 @@ type GameLite = {
 
 const STATUSES: Status[] = ["PLANNING", "PLAYING", "PAUSED", "DROPPED", "COMPLETED"];
 
-/** shared palette for statuses (used by badges & tiles) */
-function statusStyles(s: Status): React.CSSProperties {
-    const base: React.CSSProperties = {
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 600,
-        border: "1px solid transparent",
-    };
-    switch (s) {
-        case "PLAYING":
-            return { ...base, background: "#eef7ff", color: "#0b6bcb", borderColor: "#cfe6ff" };
-        case "PLANNING":
-            return { ...base, background: "#f7f7ff", color: "#5b5bd6", borderColor: "#e3e3ff" };
-        case "PAUSED":
-            return { ...base, background: "#fff7e6", color: "#aa6a00", borderColor: "#ffe7bf" };
-        case "DROPPED":
-            return { ...base, background: "#fff0f0", color: "#b01e1e", borderColor: "#ffd7d7" };
-        case "COMPLETED":
-            return { ...base, background: "#ecfbf1", color: "#1d7a45", borderColor: "#c9f0d7" };
-        default:
-            return base;
-    }
-}
+/* Tailwind badges for statuses */
+const BADGE: Record<Status, string> = {
+    PLAYING:
+        "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
+    PLANNING:
+        "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    PAUSED:
+        "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
+    DROPPED:
+        "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
+    COMPLETED:
+        "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
+};
 
 function StatusBadge({ s }: { s: Status }) {
-    return <span style={statusStyles(s)}>{s}</span>;
-}
-
-/** tile styling helper (ALL = neutral grey) */
-function tileStyle(kind: "ALL" | Status, active = false): React.CSSProperties {
-    if (kind === "ALL") {
-        return {
-            padding: 10,
-            borderRadius: 8,
-            minWidth: 110,
-            border: "1px solid #e5e7eb",
-            background: active ? "#f4f4f5" : "#fff",
-            boxShadow: active ? "0 1px 0 rgba(17,24,39,.03)" : "none",
-            cursor: "pointer",
-        };
-    }
-    const s = statusStyles(kind);
-    return {
-        padding: 10,
-        borderRadius: 8,
-        minWidth: 110,
-        border: `1px solid ${s.borderColor as string}`,
-        background: active ? (s.background as string) : "#fff",
-        color: active ? (s.color as string) : "inherit",
-        boxShadow: active ? "0 1px 0 rgba(17,24,39,.03)" : "none",
-        cursor: "pointer",
-    };
+    return (
+        <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>
+            {s}
+        </span>
+    );
 }
 
 export default function Entries() {
@@ -194,7 +160,7 @@ export default function Entries() {
                 return;
             }
 
-            // If the item came from RAWG, import it first to get a local game id
+            // If RAWG item, import first
             let gameId = selected.id;
             if (!gameId && selected.source === "rawg" && selected.rawg_id) {
                 const { data } = await api.post("/import/game/", { rawg_id: selected.rawg_id });
@@ -222,7 +188,10 @@ export default function Entries() {
     }
 
     function updateEdit(id: number, patch: Partial<EditState>) {
-        setEntryEdits((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { score: "", notes: "", started_at: "", finished_at: "" }), ...patch } }));
+        setEntryEdits((prev) => ({
+            ...prev,
+            [id]: { ...(prev[id] ?? { score: "", notes: "", started_at: "", finished_at: "" }), ...patch },
+        }));
     }
 
     function resetEdit(id: number) {
@@ -254,10 +223,9 @@ export default function Entries() {
             score = Math.min(10, Math.max(0, Math.round(n)));
         }
 
-        // dates: empty string => null; otherwise YYYY-MM-DD
+        // dates: empty string => null
         const started_at = edit.started_at.trim() === "" ? null : edit.started_at.trim();
         const finished_at = edit.finished_at.trim() === "" ? null : edit.finished_at.trim();
-
         if (started_at && finished_at && finished_at < started_at) {
             setMsg("Finish date cannot be before start date.");
             return;
@@ -281,30 +249,28 @@ export default function Entries() {
     const filteredEntries = filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
     const scored = entries.map((e) => e.score).filter((s): s is number => typeof s === "number");
     const avgScore = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : null;
-    const avgScoreText: string = avgScore === null ? "—" : (Math.round(avgScore * 10) / 10).toFixed(1);
+    const avgScoreText = avgScore === null ? "—" : (Math.round(avgScore * 10) / 10).toFixed(1);
 
     return (
-        <div style={{ maxWidth: 900, margin: "30px auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h2>My Entries</h2>
+        <div className="container-page">
+            <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xl font-semibold">My Entries</h2>
                 <button onClick={refresh}>Refresh</button>
             </div>
 
-            {/* Stats bar — CLICKABLE, COLORED TILES */}
+            {/* Stats bar — clickable tiles */}
             {stats ? (
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "12px 0" }}>
-                    {/* Total -> ALL */}
-                    <div
-                        role="button"
+                <div className="flex gap-4 flex-wrap my-4">
+                    <button
+                        type="button"
                         onClick={() => setFilter("ALL")}
-                        style={tileStyle("ALL", filter === "ALL")}
+                        className={`tile ${filter === "ALL" ? "ring-1 ring-indigo-400" : ""}`}
                         title="Show all entries"
                     >
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>Total</div>
-                        <div style={{ fontWeight: 700, fontSize: 18 }}>{stats.total}</div>
-                    </div>
+                        <div className="stat-label">Total</div>
+                        <div className="stat-value">{stats.total}</div>
+                    </button>
 
-                    {/* Each status */}
                     {([
                         ["Planning", "PLANNING"],
                         ["Playing", "PLAYING"],
@@ -312,43 +278,36 @@ export default function Entries() {
                         ["Dropped", "DROPPED"],
                         ["Completed", "COMPLETED"],
                     ] as const).map(([label, key]) => (
-                        <div
+                        <button
                             key={key}
-                            role="button"
+                            type="button"
                             onClick={() => setFilter(key)}
-                            style={tileStyle(key, filter === key)}
+                            className={`tile ${filter === key ? "ring-1 ring-indigo-400" : ""}`}
                             title={`Show ${label.toLowerCase()} entries`}
                         >
-                            <div style={{ fontSize: 12, opacity: 0.7 }}>{label}</div>
-                            <div style={{ fontWeight: 700, fontSize: 18 }}>
+                            <div className="stat-label">{label}</div>
+                            <div className="stat-value">
                                 {key === "PLANNING" && stats.planning}
                                 {key === "PLAYING" && stats.playing}
                                 {key === "PAUSED" && stats.paused}
                                 {key === "DROPPED" && stats.dropped}
                                 {key === "COMPLETED" && stats.completed}
                             </div>
-                        </div>
+                        </button>
                     ))}
 
-                    {/* Avg score tile (neutral) */}
-                    <div
-                        style={{
-                            ...tileStyle("ALL", false),
-                            cursor: "default",
-                        }}
-                        title="Average of non-empty scores"
-                    >
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>Avg score</div>
-                        <div style={{ fontWeight: 700, fontSize: 18 }}>{avgScoreText}</div>
+                    <div className="tile cursor-default" title="Average of non-empty scores">
+                        <div className="stat-label">Avg score</div>
+                        <div className="stat-value">{avgScoreText}</div>
                     </div>
                 </div>
             ) : (
-                <div style={{ margin: "8px 0", fontSize: 12, opacity: 0.7 }}>Stats not loaded (log in?).</div>
+                <div className="my-2 text-sm muted">Stats not loaded.</div>
             )}
 
             {/* Add entry (with RAWG search) */}
-            <form onSubmit={add} style={{ display: "flex", gap: 8, margin: "12px 0", alignItems: "center" }}>
-                <div style={{ position: "relative" }} ref={dropdownRef}>
+            <form onSubmit={add} className="flex gap-2 items-center my-3">
+                <div className="relative" ref={dropdownRef}>
                     <input
                         placeholder="Search games by title"
                         value={query}
@@ -356,32 +315,16 @@ export default function Entries() {
                             setQuery(e.target.value);
                             setSelected(null);
                         }}
-                        onFocus={() => {
-                            if (results.length > 0) setShowDrop(true);
-                        }}
-                        style={{ width: 300 }}
+                        onFocus={() => { if (results.length > 0) setShowDrop(true); }}
+                        className="w-[300px]"
                     />
                     {showDrop && results.length > 0 && (
-                        <div
-                            style={{
-                                position: "absolute",
-                                top: "110%",
-                                left: 0,
-                                width: 360,
-                                border: "1px solid #ddd",
-                                background: "#fff",
-                                borderRadius: 8,
-                                boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
-                                zIndex: 10,
-                                maxHeight: 320,
-                                overflowY: "auto",
-                            }}
-                        >
+                        <div className="absolute top-[110%] left-0 w-[360px] card rounded-lg shadow-lg z-10 max-h-80 overflow-y-auto">
                             {results.map((g) => (
                                 <div
                                     key={(g.rawg_id ?? g.id) as number}
                                     onClick={() => pickGame(g)}
-                                    style={{ padding: 8, cursor: "pointer", display: "flex", gap: 8, alignItems: "center" }}
+                                    className="px-2 py-2 cursor-pointer flex gap-2 items-center hover:bg-zinc-50 dark:hover:bg-zinc-700"
                                     onMouseDown={(e) => e.preventDefault()}
                                 >
                                     {g.background_image ? (
@@ -390,15 +333,13 @@ export default function Entries() {
                                             alt={g.title}
                                             width={44}
                                             height={26}
-                                            style={{ objectFit: "cover", borderRadius: 4, border: "1px solid #eee" }}
-                                            onError={(e) => {
-                                                (e.currentTarget as HTMLImageElement).style.display = "none";
-                                            }}
+                                            className="object-cover rounded border border-gray-200 dark:border-zinc-700"
+                                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                                         />
                                     ) : null}
                                     <div>
-                                        <div style={{ fontWeight: 600 }}>{g.title}</div>
-                                        <div style={{ fontSize: 12, opacity: 0.7 }}>
+                                        <div className="font-semibold">{g.title}</div>
+                                        <div className="text-xs muted">
                                             {(g.id ? `ID: ${g.id} • ` : "")}
                                             {g.release_year ? g.release_year : ""}
                                         </div>
@@ -409,7 +350,7 @@ export default function Entries() {
                     )}
                 </div>
 
-                <select value={status} onChange={(e) => setStatus(e.target.value as Status)}>
+                <select value={status} onChange={(e) => setStatus(e.target.value as Status)} className="w-[160px]">
                     {STATUSES.map((s) => (
                         <option key={s} value={s}>
                             {s}
@@ -417,80 +358,63 @@ export default function Entries() {
                     ))}
                 </select>
 
-                <button>Add</button>
+                <button type="submit" className="btn-primary">Add</button>
             </form>
 
             {selected && (
-                <div style={{ fontSize: 12, opacity: 0.8, marginTop: -6, marginBottom: 8 }}>
+                <div className="text-xs muted -mt-2 mb-2">
                     Selected: <b>{selected.title}</b>{" "}
                     {selected.id ? `(local ID ${selected.id})` : selected.rawg_id ? `(RAWG ${selected.rawg_id})` : ""}
-                    <button
-                        style={{ marginLeft: 8 }}
-                        onClick={() => {
-                            setSelected(null);
-                            setQuery("");
-                        }}
-                    >
+                    <button className="ml-2" onClick={() => { setSelected(null); setQuery(""); }}>
                         Clear
                     </button>
                 </div>
             )}
 
-            <div style={{ color: "#555" }}>{msg}</div>
+            <div className="muted">{msg}</div>
 
             {/* List */}
-            <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>
+            <ul className="list-none p-0 mt-3">
                 {filteredEntries.map((en) => {
                     const edit = entryEdits[en.id] ?? { score: "", notes: "", started_at: "", finished_at: "" };
                     return (
-                        <li
-                            key={en.id}
-                            style={{
-                                border: "1px solid #ddd",
-                                borderRadius: 8,
-                                padding: 12,
-                                marginBottom: 8,
-                                boxShadow: "0 1px 0 rgba(17,24,39,.03)", // subtle shadow
-                            }}
-                        >
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <li key={en.id} className="card p-3 mb-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
                                     {en.game.cover_url ? (
                                         <img
                                             src={en.game.cover_url}
                                             alt={en.game.title}
                                             width={80}
                                             height={45}
-                                            style={{ objectFit: "cover", borderRadius: 6, border: "1px solid #eee" }}
-                                            onError={(e) => {
-                                                (e.currentTarget as HTMLImageElement).style.display = "none";
-                                            }}
+                                            className="object-cover rounded border border-gray-200 dark:border-zinc-700"
+                                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                                         />
                                     ) : null}
                                     <div>
-                                        <div style={{ fontWeight: 600 }}>{en.game.title}</div>
-                                        <div style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                                            <span style={{ opacity: 0.7 }}>Status:</span> <StatusBadge s={en.status} />
+                                        <div className="font-semibold">{en.game.title}</div>
+                                        <div className="text-xs flex items-center gap-2">
+                                            <span className="muted">Status:</span> <StatusBadge s={en.status} />
                                         </div>
                                     </div>
                                 </div>
 
-                                <div style={{ display: "flex", gap: 8 }}>
-                                    <select value={en.status} onChange={(e) => updateStatus(en.id, e.target.value as Status)}>
+                                <div className="flex gap-2">
+                                    <select value={en.status} onChange={(e) => updateStatus(en.id, e.target.value as Status)} className="w-[160px]">
                                         {STATUSES.map((s) => (
                                             <option key={s} value={s}>
                                                 {s}
                                             </option>
                                         ))}
                                     </select>
-                                    <button onClick={() => remove(en.id)}>Delete</button>
+                                    <button className="btn-danger" onClick={() => remove(en.id)}>Delete</button>
                                 </div>
                             </div>
 
-                            {/* Score + Notes + Dates editor */}
-                            <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "110px 1fr 140px 140px auto", gap: 8, alignItems: "start" }}>
+                            {/* Editor */}
+                            <div className="mt-3 grid grid-cols-[110px_1fr_140px_140px_auto] gap-2 items-start">
                                 <div>
-                                    <label style={{ fontSize: 12, opacity: 0.7 }}>Score (0–10)</label>
+                                    <label className="text-xs muted">Score (0–10)</label>
                                     <input
                                         type="number"
                                         min={0}
@@ -499,54 +423,56 @@ export default function Entries() {
                                         value={edit.score}
                                         placeholder="0–10"
                                         onChange={(e) => updateEdit(en.id, { score: e.target.value })}
-                                        style={{ width: 100 }}
+                                        className="w-[100px]"
                                     />
                                 </div>
 
                                 <div>
-                                    <label style={{ fontSize: 12, opacity: 0.7 }}>Notes</label>
+                                    <label className="text-xs muted">Notes</label>
                                     <textarea
                                         rows={2}
                                         value={edit.notes}
                                         onChange={(e) => updateEdit(en.id, { notes: e.target.value })}
                                         placeholder="What did you think?"
-                                        style={{ width: "100%", resize: "vertical" }}
+                                        className="w-full resize-y"
                                     />
                                 </div>
 
                                 <div>
-                                    <label style={{ fontSize: 12, opacity: 0.7 }}>Started</label>
+                                    <label className="text-xs muted">Started</label>
                                     <input
                                         type="date"
                                         value={edit.started_at}
                                         onChange={(e) => updateEdit(en.id, { started_at: e.target.value })}
-                                        style={{ width: 130 }}
+                                        className="w-[130px]"
                                     />
                                     {edit.started_at && (
-                                        <button type="button" style={{ marginTop: 4 }} onClick={() => updateEdit(en.id, { started_at: "" })}>
+                                        <button type="button" className="mt-1" onClick={() => updateEdit(en.id, { started_at: "" })}>
                                             Clear
                                         </button>
                                     )}
                                 </div>
 
                                 <div>
-                                    <label style={{ fontSize: 12, opacity: 0.7 }}>Finished</label>
+                                    <label className="text-xs muted">Finished</label>
                                     <input
                                         type="date"
                                         value={edit.finished_at}
                                         onChange={(e) => updateEdit(en.id, { finished_at: e.target.value })}
-                                        style={{ width: 130 }}
+                                        className="w-[130px]"
                                     />
                                     {edit.finished_at && (
-                                        <button type="button" style={{ marginTop: 4 }} onClick={() => updateEdit(en.id, { finished_at: "" })}>
+                                        <button type="button" className="mt-1" onClick={() => updateEdit(en.id, { finished_at: "" })}>
                                             Clear
                                         </button>
                                     )}
                                 </div>
 
-                                <div style={{ display: "flex", gap: 8, alignItems: "end", justifyContent: "flex-end" }}>
-                                    <button onClick={() => saveAll(en.id)}>Save</button>
-                                    <button type="button" onClick={() => resetEdit(en.id)}>Reset</button>
+                                <div className="flex gap-2 items-end justify-end">
+                                    <button onClick={() => saveAll(en.id)} className="btn-primary">Save</button>
+                                    <button type="button" onClick={() => resetEdit(en.id)} className="btn-outline">
+                                        Reset
+                                    </button>
                                 </div>
                             </div>
                         </li>
@@ -554,7 +480,7 @@ export default function Entries() {
                 })}
             </ul>
 
-            {filteredEntries.length === 0 && <p>No entries match this filter.</p>}
+            {filteredEntries.length === 0 && <p className="mt-2">No entries match this filter.</p>}
         </div>
     );
 }

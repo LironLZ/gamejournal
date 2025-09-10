@@ -47,7 +47,9 @@ function Register() {
         value={password}
         onChange={(e) => setP(e.target.value)}
       />
-      <button className="btn-primary mt-2" type="submit">Sign up</button>
+      <button className="btn-primary mt-2" type="submit">
+        Sign up
+      </button>
       <div className="mt-2 text-zinc-600 dark:text-zinc-300 text-sm">{msg}</div>
     </form>
   );
@@ -88,7 +90,9 @@ function Login() {
         value={password}
         onChange={(e) => setP(e.target.value)}
       />
-      <button className="btn-primary mt-2" type="submit">Sign in</button>
+      <button className="btn-primary mt-2" type="submit">
+        Sign in
+      </button>
       <div className="mt-2 text-zinc-600 dark:text-zinc-300 text-sm">{msg}</div>
     </form>
   );
@@ -113,7 +117,10 @@ function Me() {
       {user ? <p>Logged in as <b>{user}</b></p> : <p>Loading…</p>}
       <button
         className="btn-outline mt-2"
-        onClick={() => { localStorage.clear(); window.location.href = "/login"; }}
+        onClick={() => {
+          localStorage.clear();
+          window.location.href = "/login";
+        }}
       >
         Logout
       </button>
@@ -129,7 +136,10 @@ export default function App() {
 
   // fetch username for nav if authed
   useEffect(() => {
-    if (!authed) { setUsername(null); return; }
+    if (!authed) {
+      setUsername(null);
+      return;
+    }
     (async () => {
       try {
         const { data } = await api.get("/auth/whoami/");
@@ -147,17 +157,18 @@ export default function App() {
   }
 
   return (
-    <div>
-      <nav className="nav">
-        <div className="nav-inner">
+    <div className="min-h-screen">
+      {/* Themed sticky navbar */}
+      <nav className="sticky top-0 z-10 border-b bg-white/70 backdrop-blur dark:bg-zinc-900/70 dark:border-zinc-800">
+        <div className="max-w-[960px] mx-auto px-3 h-12 flex items-center gap-4">
           <Link className="nav-link" to="/games">Games</Link>
           <Link className="nav-link" to="/entries">Entries</Link>
 
-          <div className="nav-sp">
+          <div className="ml-auto flex items-center gap-3">
             <ThemeToggle />
             {authed ? (
               <>
-                <span className="muted">
+                <span className="text-sm opacity-80">
                   Hello{username ? <>,&nbsp;<b>{username}</b></> : ""}
                 </span>
                 {username && (
@@ -170,7 +181,9 @@ export default function App() {
                     Public profile
                   </Link>
                 )}
-                <button className="btn-outline" onClick={logout}>Logout</button>
+                <button className="btn-outline" onClick={logout}>
+                  Logout
+                </button>
               </>
             ) : (
               <>
@@ -187,7 +200,10 @@ export default function App() {
         <Route path="/u/:username" element={<PublicProfile />} />
 
         {/* default: send authed users to entries, others to login */}
-        <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Login />} />
+        <Route
+          path="/"
+          element={authed ? <Navigate to="/entries" replace /> : <Login />}
+        />
 
         {/* auth */}
         <Route path="/register" element={<Register />} />

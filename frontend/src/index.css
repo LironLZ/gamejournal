@@ -2,14 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ---------- Base (light/dark) ---------- */
+/* ----- Base layer (light/dark & reset) ----- */
 @layer base {
 
-  /* Kill any leftover Vite demo rules */
+  /* remove Vite demo layout rules */
   body {
-    display: block !important;
-    place-items: unset !important;
-    min-height: auto !important;
+    display: block;
+    place-items: unset;
+    min-height: auto;
   }
 
   html {
@@ -17,32 +17,50 @@
   }
 
   body {
-    @apply h-full m-0 bg-gray-50 text-slate-900 dark:bg-zinc-900 dark:text-zinc-100;
+    @apply h-full m-0 bg-gray-50 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100;
   }
 
   a {
-    @apply text-indigo-600 hover:text-indigo-700 underline-offset-2 dark:text-indigo-400 dark:hover:text-indigo-300;
+    @apply text-indigo-600 hover:text-indigo-800 underline-offset-2 dark:text-indigo-400 dark:hover:text-indigo-300;
+  }
+
+  /* Auto-style form fields everywhere */
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  input[type="password"],
+  input[type="search"],
+  select,
+  textarea {
+    @apply w-full border border-gray-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-sm px-3 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
+  }
+
+  /* Buttons: sensible default (you can still use .btn-* for fancy ones) */
+  button {
+    @apply inline-flex items-center gap-2 text-sm font-semibold rounded-md border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-zinc-700;
   }
 }
 
-/* ---------- Reusable components ---------- */
+/* ----- Components (reusable tokens) ----- */
 @layer components {
 
-  /* Page container */
-  .container-page {
-    @apply max-w-[960px] mx-auto mt-6 px-3 min-h-screen bg-gray-50 dark:bg-zinc-900;
+  /* A surface always has readable bg/text in both themes */
+  .surface {
+    @apply bg-white text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100;
   }
 
-  /* Cards / tiles */
+  .container-page {
+    @apply max-w-[960px] mx-auto mt-6 px-3 min-h-screen surface;
+  }
+
   .card {
-    @apply bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-card;
+    @apply surface border border-gray-200 dark:border-zinc-700 rounded-xl shadow-sm;
   }
 
   .tile {
-    @apply px-4 py-3 min-w-[120px] rounded-xl border shadow-sm cursor-pointer select-none bg-white hover:bg-zinc-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:border-zinc-700;
+    @apply surface px-4 py-3 min-w-[120px] rounded-xl border border-gray-200 dark:border-zinc-700 shadow-sm;
   }
 
-  /* Buttons */
   .btn {
     @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-semibold transition-colors;
   }
@@ -51,19 +69,18 @@
     @apply btn bg-indigo-600 text-white hover:bg-indigo-700;
   }
 
-  .btn-outline {
-    @apply btn border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700;
-  }
-
   .btn-ghost {
     @apply btn bg-transparent hover:bg-zinc-100 text-zinc-800 dark:hover:bg-zinc-800 dark:text-zinc-100;
+  }
+
+  .btn-outline {
+    @apply btn border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700;
   }
 
   .btn-danger {
     @apply btn bg-crimson-600 text-white hover:bg-crimson-700;
   }
 
-  /* Pills / badges */
   .pill {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
   }
@@ -76,33 +93,20 @@
     @apply pill bg-indigo-600 text-white;
   }
 
-  /* Form controls */
-  .input {
-    @apply border border-gray-300 dark:border-zinc-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-zinc-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
-  }
-
-  .select {
-    @apply border border-gray-300 dark:border-zinc-600 rounded-md px-2 py-1 text-sm bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500;
-  }
-
-  /* Nav */
-  .nav {
-    @apply sticky top-0 z-30 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-700;
-  }
-
-  .nav-inner {
-    @apply max-w-[960px] mx-auto px-3 py-2 flex items-center gap-3;
-  }
-
-  .nav-sp {
-    @apply ml-auto flex items-center gap-3;
-  }
-
   .nav-link {
     @apply text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium;
   }
 
   .muted {
-    @apply text-zinc-500 dark:text-zinc-400;
+    @apply text-zinc-600 dark:text-zinc-400;
+  }
+
+  /* readable labels/numbers inside stat tiles */
+  .stat-label {
+    @apply text-xs text-zinc-600 dark:text-zinc-400;
+  }
+
+  .stat-value {
+    @apply text-lg font-bold text-zinc-900 dark:text-zinc-50;
   }
 }
