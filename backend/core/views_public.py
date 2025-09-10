@@ -2,8 +2,8 @@
 from datetime import timedelta
 
 from django.db.models import Avg, Count, Max, Q
-from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -44,7 +44,7 @@ def discover_games(request):
     cutoff = now - timedelta(days=90)  # “recent” window for trending
 
     qs = qs.annotate(
-        ratings_count=Count("entries", filter=Q(entries__score__isnull=False), distinct=True),
+        ratings_count=Count("entries", filter=Q(entries__score__isnull=False)),
         avg_score=Avg("entries__score", filter=Q(entries__score__isnull=False)),
         last_entry_at=Max("entries__updated_at"),
         recent_count=Count("entries", filter=Q(entries__updated_at__gte=cutoff)),
@@ -53,6 +53,7 @@ def discover_games(request):
     if sort == "trending":
         qs = qs.order_by("-recent_count", "-ratings_count", "-last_entry_at", "title")
     elif sort == "top":
+        # show games with at least 1 rating
         qs = qs.filter(ratings_count__gte=1).order_by("-avg_score", "-ratings_count", "title")
     elif sort == "new":
         qs = qs.order_by("-release_year", "-recent_count", "-ratings_count", "title")
@@ -61,8 +62,7 @@ def discover_games(request):
     else:
         qs = qs.order_by("-recent_count", "-ratings_count", "-last_entry_at", "title")
 
-    slice_qs = qs[offset : offset + limit]
-
+    slice_qs = qs[offset: offset + limit]
     data = list(
         slice_qs.values(
             "id",
@@ -81,54 +81,44 @@ def discover_games(request):
 @permission_classes([AllowAny])
 def game_detail(request, game_id: int):
     """
-    Public details for a single game: aggregates + recent activity.
+    Public detail for a single game: basic fields, aggregate stats and recent entries.
     """
-    # Ensure the game exists
-    get_object_or_404(Game, pk=game_id)
+    game = get_object_or_404(Game, id=game_id)
 
-    # Aggregate metrics
-    g = (
-        Game.objects.filter(pk=game_id)
-        .annotate(
-            avg_score=Avg("entries__score", filter=Q(entries__score__isnull=False)),
-            ratings_count=Count("entries", filter=Q(entries__score__isnull=False), distinct=True),
-            last_entry_at=Max("entries__updated_at"),
-            planning_count=Count("entries", filter=Q(entries__status=GameEntry.Status.PLANNING)),
-            playing_count=Count("entries", filter=Q(entries__status=GameEntry.Status.PLAYING)),
-            paused_count=Count("entries", filter=Q(entries__status=GameEntry.Status.PAUSED)),
-            dropped_count=Count("entries", filter=Q(entries__status=GameEntry.Status.DROPPED)),
-            completed_count=Count("entries", filter=Q(entries__status=GameEntry.Status.COMPLETED)),
-        )
-        .values(
-            "id",
-            "title",
-            "release_year",
-            "cover_url",
-            "avg_score",
-            "ratings_count",
-            "last_entry_at",
-            "planning_count",
-            "playing_count",
-            "paused_count",
-            "dropped_count",
-            "completed_count",
-        )
-        .first()
+    entries_qs = GameEntry.objects.filter(game=game).select_related("user")
+
+    stats = entries_qs.aggregate(
+        ratings_count=Count("id", filter=Q(score__isnull=False)),
+        avg_score=Avg("score", filter=Q(score__isnull=False)),
+        last_entry_at=Max("updated_at"),
+
+        planning=Count("id", filter=Q(status=GameEntry.Status.PLANNING)),
+        playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
+        played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),
+        dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
+        completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
     )
 
-    # Recent activity (no notes to avoid oversharing by default)
-    recent = list(
-        GameEntry.objects.filter(game_id=game_id)
-        .select_related("user")
-        .order_by("-updated_at")
-        .values(
-            "id",
-            "user__username",
-            "status",
-            "score",
-            "finished_at",
-            "updated_at",
-        )[:20]
+    # keep it small & anonymous-ish; include score + note
+    recent_entries = list(
+        entries_qs.order_by("-updated_at")[:20].values(
+            username=Q("user__username"),
+            status=Q("status"),
+            score=Q("score"),
+            notes=Q("notes"),
+            started_at=Q("started_at"),
+            finished_at=Q("finished_at"),
+            updated_at=Q("updated_at"),
+        )
     )
 
-    return Response({"game": g, "recent_entries": recent})
+    return Response({
+        "game": {
+            "id": game.id,
+            "title": game.title,
+            "release_year": game.release_year,
+            "cover_url": game.cover_url,
+        },
+        "stats": stats,
+        "entries": recent_entries,
+    })
