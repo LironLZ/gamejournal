@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../api";
 
 type SortKey = "trending" | "top" | "new" | "popular";
@@ -21,6 +22,7 @@ const SORTS: { key: SortKey; label: string }[] = [
 ];
 
 export default function Discover() {
+    const nav = useNavigate();
     const [sort, setSort] = useState<SortKey>("trending");
     const [q, setQ] = useState("");
     const [offset, setOffset] = useState(0);
@@ -60,7 +62,6 @@ export default function Discover() {
 
     return (
         <div className="container-page">
-            {/* intro / CTA */}
             <div className="card p-4 mb-4 flex items-center justify-between gap-3">
                 <div>
                     <h2 className="text-xl font-bold mb-1">Discover games</h2>
@@ -74,7 +75,6 @@ export default function Discover() {
                 </div>
             </div>
 
-            {/* controls */}
             <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <div className="flex gap-1">
                     {SORTS.map(s => (
@@ -108,7 +108,6 @@ export default function Discover() {
                 </div>
             </div>
 
-            {/* grid */}
             {err && <div className="card p-3 mb-3 text-crimson-600">{err}</div>}
 
             {loading ? (
@@ -129,7 +128,13 @@ export default function Discover() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {items.map(g => (
-                        <a key={g.id} className="card p-3 block hover:no-underline" href="#">
+                        <div
+                            key={g.id}
+                            role="button"
+                            onClick={() => nav(`/game/${g.id}`)}
+                            className="card p-3 cursor-pointer hover:no-underline"
+                            title="View details"
+                        >
                             {g.cover_url ? (
                                 <img
                                     src={g.cover_url}
@@ -151,12 +156,11 @@ export default function Discover() {
                             <div className="mt-1 text-xs muted">
                                 {g.ratings_count} {g.ratings_count === 1 ? "rating" : "ratings"}
                             </div>
-                        </a>
+                        </div>
                     ))}
                 </div>
             )}
 
-            {/* pagination */}
             <div className="flex items-center justify-between mt-4">
                 <button
                     className="btn-outline"

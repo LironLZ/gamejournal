@@ -5,7 +5,8 @@ import api from "./api";
 import Entries from "./pages/Entries";
 import Games from "./pages/Games";
 import PublicProfile from "./pages/PublicProfile";
-import Discover from "./pages/Discover";     // ⬅️ NEW
+import Discover from "./pages/Discover";
+import GameDetails from "./pages/GameDetails";  // ⬅️ NEW
 import ThemeToggle from "./ThemeToggle";
 
 // --- Protected route wrapper ---
@@ -150,10 +151,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {/* sticky navbar */}
       <nav className="sticky top-0 z-10 border-b bg-white/70 backdrop-blur dark:bg-zinc-900/70 dark:border-zinc-800">
         <div className="max-w-[960px] mx-auto px-3 h-12 flex items-center gap-4">
-          <Link className="nav-link" to="/discover">Discover</Link>{/* ⬅️ NEW */}
+          <Link className="nav-link" to="/discover">Discover</Link>
           <Link className="nav-link" to="/games">Games</Link>
           <Link className="nav-link" to="/entries">Entries</Link>
 
@@ -187,25 +187,20 @@ export default function App() {
       </nav>
 
       <Routes>
-        {/* public profile FIRST */}
         <Route path="/u/:username" element={<PublicProfile />} />
-
-        {/* NEW public landing */}
         <Route path="/discover" element={<Discover />} />
+        <Route path="/game/:id" element={<GameDetails />} /> {/* ⬅️ NEW */}
 
-        {/* default: authed -> entries, guests -> discover */}
+        {/* default: guests -> Discover, authed -> Entries */}
         <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Discover />} />
 
-        {/* auth */}
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
 
-        {/* protected */}
         <Route path="/games" element={<ProtectedRoute><Games /></ProtectedRoute>} />
         <Route path="/entries" element={<ProtectedRoute><Entries /></ProtectedRoute>} />
         <Route path="/me" element={<ProtectedRoute><Me /></ProtectedRoute>} />
 
-        {/* fallback */}
         <Route path="*" element={<div className="p-6">Not found</div>} />
       </Routes>
     </div>

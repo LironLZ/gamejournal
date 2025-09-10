@@ -34,7 +34,8 @@ urlpatterns = [
     path('', include(router.urls)),
     path('', include(nested.urls)),
 
-    # public profile
+    # public
     path("users/<str:username>/", views.public_profile, name="public-profile"),
     path("public/games/", views_public.discover_games, name="discover-games"),
+    path("public/games/<int:game_id>/", views_public.game_detail, name="public-game-detail"),  # ⬅️ NEW
 ]
