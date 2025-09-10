@@ -3,10 +3,9 @@ import { useEffect, useState } from "react";
 import api from "./api";
 
 import Entries from "./pages/Entries";
-import Games from "./pages/Games";
 import PublicProfile from "./pages/PublicProfile";
 import Discover from "./pages/Discover";
-import GameDetails from "./pages/GameDetails";  // ⬅️ NEW
+import GameDetails from "./pages/GameDetails";
 import ThemeToggle from "./ThemeToggle";
 
 // --- Protected route wrapper ---
@@ -154,7 +153,6 @@ export default function App() {
       <nav className="sticky top-0 z-10 border-b bg-white/70 backdrop-blur dark:bg-zinc-900/70 dark:border-zinc-800">
         <div className="max-w-[960px] mx-auto px-3 h-12 flex items-center gap-4">
           <Link className="nav-link" to="/discover">Discover</Link>
-          <Link className="nav-link" to="/games">Games</Link>
           <Link className="nav-link" to="/entries">Entries</Link>
 
           <div className="ml-auto flex items-center gap-3">
@@ -189,7 +187,10 @@ export default function App() {
       <Routes>
         <Route path="/u/:username" element={<PublicProfile />} />
         <Route path="/discover" element={<Discover />} />
-        <Route path="/game/:id" element={<GameDetails />} /> {/* ⬅️ NEW */}
+        <Route path="/game/:id" element={<GameDetails />} />
+
+        {/* Redirect old /games to Discover to avoid 404s */}
+        <Route path="/games" element={<Navigate to="/discover" replace />} />
 
         {/* default: guests -> Discover, authed -> Entries */}
         <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Discover />} />
@@ -197,7 +198,6 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
 
-        <Route path="/games" element={<ProtectedRoute><Games /></ProtectedRoute>} />
         <Route path="/entries" element={<ProtectedRoute><Entries /></ProtectedRoute>} />
         <Route path="/me" element={<ProtectedRoute><Me /></ProtectedRoute>} />
 
