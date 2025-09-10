@@ -3,7 +3,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from . import views
+from . import views, views_public
 
 # top-level routers
 router = DefaultRouter()
@@ -36,4 +36,5 @@ urlpatterns = [
 
     # public profile
     path("users/<str:username>/", views.public_profile, name="public-profile"),
+    path("public/games/", views_public.discover_games, name="discover-games"),
 ]

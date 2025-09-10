@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ----- Base layer (light/dark & reset) ----- */
+/* ---------- Base ---------- */
 @layer base {
 
   /* remove Vite demo layout rules */
@@ -24,36 +24,53 @@
     @apply text-indigo-600 hover:text-indigo-800 underline-offset-2 dark:text-indigo-400 dark:hover:text-indigo-300;
   }
 
-  /* Auto-style form fields (also catch inputs with no explicit type) */
-  input:not([type]),
+  /* Form fields */
   input[type="text"],
-  input[type="email"],
   input[type="number"],
   input[type="date"],
   input[type="password"],
   input[type="search"],
+  input:not([type]),
+  /* safety for any no-type inputs */
   select,
   textarea {
-    @apply w-full border border-gray-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-sm text-zinc-900 dark:text-zinc-100 px-3 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
+    @apply w-full border border-gray-300 dark:border-zinc-700 rounded-md bg-white dark:bg-zinc-800 text-sm px-3 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors;
   }
 
-  /* Sane default button look (component variants can override) */
+  /* Buttons (sane default) */
   button {
-    @apply inline-flex items-center gap-2 text-sm font-semibold rounded-md border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-zinc-700;
+    @apply inline-flex items-center gap-2 text-sm font-semibold rounded-md border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors;
   }
 }
 
-/* ----- Components (reusable tokens) ----- */
+/* ---------- Components ---------- */
 @layer components {
 
-  /* layout */
+  /* App backdrop (soft spotlights) */
+  .app-bg {
+    background:
+      radial-gradient(1200px 600px at 50% -20%, rgba(99, 102, 241, 0.10), transparent 60%),
+      radial-gradient(900px 500px at 110% -10%, rgba(244, 63, 94, 0.10), transparent 55%);
+  }
+
+  .dark .app-bg {
+    background:
+      radial-gradient(1100px 540px at 50% -20%, rgba(99, 102, 241, 0.18), transparent 60%),
+      radial-gradient(820px 460px at 110% -10%, rgba(244, 63, 94, 0.14), transparent 55%);
+  }
+
+  /* Layout */
   .container-page {
     @apply max-w-[960px] mx-auto mt-6 px-3 min-h-screen bg-gray-50 dark:bg-zinc-900;
   }
 
-  /* surfaces */
+  /* Surfaces */
   .card {
-    @apply bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-sm;
+    @apply bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-sm transition-shadow;
+  }
+
+  .card:hover {
+    @apply shadow-md;
   }
 
   .card-tinted {
@@ -64,22 +81,47 @@
     @apply card border-crimson-200 bg-crimson-50 dark:border-rose-700 dark:bg-rose-900/20;
   }
 
-  /* tiles */
+  /* Tiles (neutral) */
   .tile {
-    @apply px-4 py-3 min-w-[120px] rounded-xl border shadow-sm cursor-pointer select-none bg-white hover:bg-zinc-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:border-zinc-700;
+    @apply px-4 py-3 min-w-[120px] rounded-xl border shadow-sm cursor-pointer select-none bg-white hover:bg-zinc-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:border-zinc-700 transition-colors;
   }
 
   .tile-active {
     @apply ring-1 ring-indigo-400 dark:ring-indigo-500;
   }
 
-  /* buttons */
+  /* Colored tile variants by status */
+  .tile-planning {
+    @apply border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/20;
+  }
+
+  .tile-playing {
+    @apply border-sky-200 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20;
+  }
+
+  .tile-paused {
+    @apply border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20;
+  }
+
+  .tile-dropped {
+    @apply border-rose-200 bg-rose-50 dark:border-rose-700 dark:bg-rose-900/20;
+  }
+
+  .tile-completed {
+    @apply border-emerald-200 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20;
+  }
+
+  /* Buttons */
   .btn {
     @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-semibold transition-colors;
   }
 
   .btn-primary {
     @apply btn bg-indigo-600 text-white hover:bg-indigo-700;
+  }
+
+  .btn-secondary {
+    @apply btn bg-crimson-600 text-white hover:bg-crimson-700;
   }
 
   .btn-ghost {
@@ -94,7 +136,7 @@
     @apply btn bg-crimson-600 text-white hover:bg-crimson-700;
   }
 
-  /* text helpers */
+  /* Text helpers */
   .muted {
     @apply text-zinc-600 dark:text-zinc-400;
   }
@@ -107,7 +149,7 @@
     @apply text-lg font-bold text-zinc-900 dark:text-zinc-100;
   }
 
-  /* pills */
+  /* Pills */
   .pill {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
   }
@@ -120,7 +162,12 @@
     @apply pill bg-indigo-600 text-white;
   }
 
+  /* Navbar links */
   .nav-link {
-    @apply text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium;
+    @apply font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300;
+  }
+
+  .nav-link-active {
+    @apply text-indigo-700 dark:text-indigo-300 underline underline-offset-4 decoration-2;
   }
 }

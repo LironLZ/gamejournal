@@ -5,6 +5,7 @@ import api from "./api";
 import Entries from "./pages/Entries";
 import Games from "./pages/Games";
 import PublicProfile from "./pages/PublicProfile";
+import Discover from "./pages/Discover";     // ⬅️ NEW
 import ThemeToggle from "./ThemeToggle";
 
 // --- Protected route wrapper ---
@@ -35,7 +36,7 @@ function Register() {
     <form onSubmit={submit} className="max-w-sm mx-auto mt-10 card p-4">
       <h2 className="text-xl font-semibold mb-2">Register</h2>
       <input
-        type="text"                     /* ensure proper styling + readable text */
+        type="text"
         className="input w-full my-2"
         placeholder="Username"
         value={username}
@@ -48,9 +49,7 @@ function Register() {
         value={password}
         onChange={(e) => setP(e.target.value)}
       />
-      <button className="btn-primary mt-2" type="submit">
-        Sign up
-      </button>
+      <button className="btn-primary mt-2" type="submit">Sign up</button>
       <div className="mt-2 text-zinc-600 dark:text-zinc-300 text-sm">{msg}</div>
     </form>
   );
@@ -79,7 +78,7 @@ function Login() {
     <form onSubmit={submit} className="max-w-sm mx-auto mt-10 card p-4">
       <h2 className="text-xl font-semibold mb-2">Login</h2>
       <input
-        type="text"                     /* ensure proper styling + readable text */
+        type="text"
         className="input w-full my-2"
         placeholder="Username"
         value={username}
@@ -92,9 +91,7 @@ function Login() {
         value={password}
         onChange={(e) => setP(e.target.value)}
       />
-      <button className="btn-primary mt-2" type="submit">
-        Sign in
-      </button>
+      <button className="btn-primary mt-2" type="submit">Sign in</button>
       <div className="mt-2 text-zinc-600 dark:text-zinc-300 text-sm">{msg}</div>
     </form>
   );
@@ -119,10 +116,7 @@ function Me() {
       {user ? <p>Logged in as <b>{user}</b></p> : <p>Loading…</p>}
       <button
         className="btn-outline mt-2"
-        onClick={() => {
-          localStorage.clear();
-          window.location.href = "/login";
-        }}
+        onClick={() => { localStorage.clear(); window.location.href = "/login"; }}
       >
         Logout
       </button>
@@ -136,12 +130,8 @@ export default function App() {
   const [username, setUsername] = useState<string | null>(null);
   const authed = !!localStorage.getItem("access");
 
-  // fetch username for nav if authed
   useEffect(() => {
-    if (!authed) {
-      setUsername(null);
-      return;
-    }
+    if (!authed) { setUsername(null); return; }
     (async () => {
       try {
         const { data } = await api.get("/auth/whoami/");
@@ -160,9 +150,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {/* Themed sticky navbar */}
+      {/* sticky navbar */}
       <nav className="sticky top-0 z-10 border-b bg-white/70 backdrop-blur dark:bg-zinc-900/70 dark:border-zinc-800">
         <div className="max-w-[960px] mx-auto px-3 h-12 flex items-center gap-4">
+          <Link className="nav-link" to="/discover">Discover</Link>{/* ⬅️ NEW */}
           <Link className="nav-link" to="/games">Games</Link>
           <Link className="nav-link" to="/entries">Entries</Link>
 
@@ -183,9 +174,7 @@ export default function App() {
                     Public profile
                   </Link>
                 )}
-                <button className="btn-outline" onClick={logout}>
-                  Logout
-                </button>
+                <button className="btn-outline" onClick={logout}>Logout</button>
               </>
             ) : (
               <>
@@ -201,11 +190,11 @@ export default function App() {
         {/* public profile FIRST */}
         <Route path="/u/:username" element={<PublicProfile />} />
 
-        {/* default: send authed users to entries, others to login */}
-        <Route
-          path="/"
-          element={authed ? <Navigate to="/entries" replace /> : <Login />}
-        />
+        {/* NEW public landing */}
+        <Route path="/discover" element={<Discover />} />
+
+        {/* default: authed -> entries, guests -> discover */}
+        <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Discover />} />
 
         {/* auth */}
         <Route path="/register" element={<Register />} />
@@ -216,7 +205,7 @@ export default function App() {
         <Route path="/entries" element={<ProtectedRoute><Entries /></ProtectedRoute>} />
         <Route path="/me" element={<ProtectedRoute><Me /></ProtectedRoute>} />
 
-        {/* fallback LAST */}
+        {/* fallback */}
         <Route path="*" element={<div className="p-6">Not found</div>} />
       </Routes>
     </div>
