@@ -53,7 +53,7 @@ def discover_games(request):
     if sort == "trending":
         qs = qs.order_by("-recent_count", "-ratings_count", "-last_entry_at", "title")
     elif sort == "top":
-        qs = qs.filter(ratings_count__gte=3).order_by("-avg_score", "-ratings_count", "title")
+        qs = qs.filter(ratings_count__gte=1).order_by("-avg_score", "-ratings_count", "title")
     elif sort == "new":
         qs = qs.order_by("-release_year", "-recent_count", "-ratings_count", "title")
     elif sort == "popular":
