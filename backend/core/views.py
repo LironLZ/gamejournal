@@ -4,7 +4,7 @@ import requests
 
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q  # Sum removed (no minutes aggregation here)
+from django.db.models import Count, Q
 
 from rest_framework import status, viewsets, permissions
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
@@ -19,24 +19,23 @@ from .serializers import (
     GameEntrySerializer,
     PlaySessionSerializer,
     GameWriteSerializer,
-    PublicEntrySerializer,  # for public profile
+    PublicEntrySerializer,
 )
 
-# ---- RAWG key from env -------------------------------------------------------
 RAWG_API_KEY = os.environ.get("RAWG_API_KEY")
 
 
-# ---------- Health ------------------------------------------------------------
-@api_view(['GET'])
+# ---------- Health ----------
+@api_view(["GET"])
 @permission_classes([AllowAny])
 def ping(request):
     return Response({"status": "ok", "app": "GameJournal"})
 
 
-# ---------- Auth --------------------------------------------------------------
+# ---------- Auth ----------
 @extend_schema(
     request=RegisterSerializer,
-    examples=[OpenApiExample('Register example', value={"username": "tester", "password": "secret123"})],
+    examples=[OpenApiExample("Register example", value={"username": "tester", "password": "secret123"})],
     responses={201: {"type": "object", "properties": {"ok": {"type": "boolean"}}}},
 )
 @api_view(["POST"])
@@ -50,34 +49,32 @@ def register(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def whoami(request):
     return Response({"user": request.user.username})
 
 
-# ---------- Stats (private) ---------------------------------------------------
-@api_view(['GET'])
+# ---------- Stats (private) ----------
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_stats(request):
     """
     Private dashboard stats for the authenticated user.
-    Minutes have been removed by design.
     """
     qs = GameEntry.objects.filter(user=request.user)
     data = {
         "total": qs.count(),
         "planning": qs.filter(status=GameEntry.Status.PLANNING).count(),
         "playing": qs.filter(status=GameEntry.Status.PLAYING).count(),
-        "paused": qs.filter(status=GameEntry.Status.PAUSED).count(),
+        "played": qs.filter(status=GameEntry.Status.PLAYED).count(),   # ← renamed
         "dropped": qs.filter(status=GameEntry.Status.DROPPED).count(),
         "completed": qs.filter(status=GameEntry.Status.COMPLETED).count(),
-        # "total_minutes": ...  # removed
     }
     return Response(data)
 
 
-# ---------- Public profile (read-only) ----------------------------------------
+# ---------- Public profile (read-only) ----------
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def public_profile(request, username: str):
@@ -98,12 +95,12 @@ def public_profile(request, username: str):
         .order_by("-updated_at")
     )
 
-    # aggregate counts only (no minutes)
+    # aggregate counts (notice: 'played' now, no 'paused')
     stats = qs.aggregate(
         total=Count("id"),
         planning=Count("id", filter=Q(status=GameEntry.Status.PLANNING)),
         playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
-        paused=Count("id", filter=Q(status=GameEntry.Status.PAUSED)),
+        played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),        # ← changed
         dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
         completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
     )
@@ -120,15 +117,15 @@ def public_profile(request, username: str):
     })
 
 
-# ---------- RAWG search & import ---------------------------------------------
-@api_view(['GET'])
+# ---------- RAWG search & import ----------
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def search_games_external(request):
     """
     Proxy to RAWG: /api/search/games/?q=<query>
     Returns up to 8 results with: rawg_id, title, release_year, background_image.
     """
-    q = (request.query_params.get('q') or '').strip()
+    q = (request.query_params.get("q") or "").strip()
     if not q:
         return Response([])
 
@@ -155,7 +152,7 @@ def search_games_external(request):
     return Response(items)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def import_game(request):
     """
@@ -186,7 +183,6 @@ def import_game(request):
         title=title,
         defaults={"release_year": year, "cover_url": cover},
     )
-    # If game existed but no cover stored yet, fill it
     if not created and cover and not game.cover_url:
         game.cover_url = cover
         game.save(update_fields=["cover_url"])
@@ -197,7 +193,7 @@ def import_game(request):
     )
 
 
-# ---------- Permissions --------------------------------------------------------
+# ---------- Permissions ----------
 class IsOwner(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if isinstance(obj, GameEntry):
@@ -207,7 +203,7 @@ class IsOwner(permissions.BasePermission):
         return True
 
 
-# ---------- ViewSets -----------------------------------------------------------
+# ---------- ViewSets ----------
 class GameEntryViewSet(viewsets.ModelViewSet):
     serializer_class = GameEntrySerializer
     permission_classes = [permissions.IsAuthenticated, IsOwner]
@@ -216,8 +212,8 @@ class GameEntryViewSet(viewsets.ModelViewSet):
         return (
             GameEntry.objects
             .filter(user=self.request.user)
-            .select_related('game')
-            .order_by('-updated_at')
+            .select_related("game")
+            .order_by("-updated_at")
         )
 
     def perform_create(self, serializer):
@@ -229,15 +225,15 @@ class PlaySessionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     def get_queryset(self):
-        entry_id = self.kwargs['entry_pk']
+        entry_id = self.kwargs["entry_pk"]
         return (
             PlaySession.objects
             .filter(entry__id=entry_id, entry__user=self.request.user)
-            .order_by('-played_on', '-id')
+            .order_by("-played_on", "-id")
         )
 
     def perform_create(self, serializer):
-        entry_id = self.kwargs['entry_pk']
+        entry_id = self.kwargs["entry_pk"]
         entry = get_object_or_404(GameEntry, id=entry_id, user=self.request.user)
         serializer.save(entry=entry)
 

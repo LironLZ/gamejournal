@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../api";
 
-type Status = "PLANNING" | "PLAYING" | "PAUSED" | "DROPPED" | "COMPLETED";
+type Status = "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED";
 
 type Entry = {
     id: number;
@@ -22,7 +22,7 @@ type Stats = {
     total: number;
     planning: number;
     playing: number;
-    paused: number;
+    played: number;          // <- renamed
     dropped: number;
     completed: number;
 };
@@ -36,20 +36,15 @@ type GameLite = {
     background_image?: string | null;
 };
 
-const STATUSES: Status[] = ["PLANNING", "PLAYING", "PAUSED", "DROPPED", "COMPLETED"];
+const STATUSES: Status[] = ["PLANNING", "PLAYING", "PLAYED", "DROPPED", "COMPLETED"];
 
-/* Status badges (good contrast in dark) */
+/* Status badges */
 const BADGE: Record<Status, string> = {
-    PLAYING:
-        "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
-    PLANNING:
-        "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
-    PAUSED:
-        "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
-    DROPPED:
-        "bg-crimson-100 text-crimson-700 border-crimson-200 dark:bg-crimson-900/30 dark:text-crimson-300 dark:border-crimson-700",
-    COMPLETED:
-        "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
+    PLAYING: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
+    PLANNING: "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    PLAYED: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
+    DROPPED: "bg-crimson-100 text-crimson-700 border-crimson-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
+    COMPLETED: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
 };
 
 function StatusBadge({ s }: { s: Status }) {
@@ -65,8 +60,8 @@ const TILE_ACTIVE: Record<Status | "ALL", string> = {
     ALL: "tile-active",
     PLANNING: "tile-active border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/20",
     PLAYING: "tile-active border-sky-200 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20",
-    PAUSED: "tile-active border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20",
-    DROPPED: "tile-active border-crimson-200 bg-crimson-50 dark:border-crimson-700 dark:bg-crimson-900/20",
+    PLAYED: "tile-active border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20",
+    DROPPED: "tile-active border-crimson-200 bg-crimson-50 dark:border-rose-700 dark:bg-rose-900/20",
     COMPLETED: "tile-active border-emerald-200 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20",
 };
 
@@ -75,10 +70,8 @@ export default function Entries() {
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // status filter (driven by tiles too)
     const [filter, setFilter] = useState<"ALL" | Status>("ALL");
 
-    // search state (RAWG via backend)
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<GameLite[]>([]);
     const [showDrop, setShowDrop] = useState(false);
@@ -89,14 +82,12 @@ export default function Entries() {
     const debounceRef = useRef<number | null>(null);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-    // per-entry edit state (includes dates)
     type EditState = { score: string; notes: string; started_at: string; finished_at: string };
     const [entryEdits, setEntryEdits] = useState<Record<number, EditState>>({});
 
     async function loadEntries() {
         const { data } = await api.get("/entries/");
         setEntries(data);
-        // seed edits
         const seeded: Record<number, EditState> = {};
         for (const en of data as Entry[]) {
             seeded[en.id] = {
@@ -112,7 +103,16 @@ export default function Entries() {
     async function loadStats() {
         try {
             const { data } = await api.get("/stats/");
-            setStats(data);
+            // Accept either key from API (for transition)
+            const played = (data.played ?? data.paused) as number;
+            setStats({
+                total: data.total,
+                planning: data.planning,
+                playing: data.playing,
+                played,
+                dropped: data.dropped,
+                completed: data.completed,
+            });
         } catch {
             setStats(null);
         }
@@ -129,7 +129,6 @@ export default function Entries() {
 
     useEffect(() => { refresh(); }, []);
 
-    // debounced RAWG search via backend proxy
     useEffect(() => {
         if (debounceRef.current) window.clearTimeout(debounceRef.current);
         if (!query || query.trim().length < 2) {
@@ -145,12 +144,9 @@ export default function Entries() {
                 setResults([]);
             }
         }, 250);
-        return () => {
-            if (debounceRef.current) window.clearTimeout(debounceRef.current);
-        };
+        return () => { if (debounceRef.current) window.clearTimeout(debounceRef.current); };
     }, [query]);
 
-    // close dropdown on outside click
     useEffect(() => {
         function onDocClick(e: MouseEvent) {
             if (!dropdownRef.current) return;
@@ -174,7 +170,6 @@ export default function Entries() {
                 setMsg("Pick a game from search first");
                 return;
             }
-            // If RAWG item, import first
             let gameId = selected.id;
             if (!gameId && selected.source === "rawg" && selected.rawg_id) {
                 const { data } = await api.post("/import/game/", { rawg_id: selected.rawg_id });
@@ -225,18 +220,13 @@ export default function Entries() {
         const edit = entryEdits[id];
         if (!edit) return;
 
-        // score: string -> number|null (clamp 0..10)
         let score: number | null = null;
         if (edit.score.trim() !== "") {
             const n = Number(edit.score);
-            if (!Number.isFinite(n)) {
-                setMsg("Score must be a number between 0 and 10.");
-                return;
-            }
+            if (!Number.isFinite(n)) { setMsg("Score must be a number between 0 and 10."); return; }
             score = Math.min(10, Math.max(0, Math.round(n)));
         }
 
-        // dates: empty string => null
         const started_at = edit.started_at.trim() === "" ? null : edit.started_at.trim();
         const finished_at = edit.finished_at.trim() === "" ? null : edit.finished_at.trim();
         if (started_at && finished_at && finished_at < started_at) {
@@ -258,7 +248,6 @@ export default function Entries() {
         refresh();
     }
 
-    // filtered list & average score
     const filteredEntries = filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
     const scored = entries.map((e) => e.score).filter((s): s is number => typeof s === "number");
     const avgScore = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : null;
@@ -283,12 +272,8 @@ export default function Entries() {
                 </div>
             ) : stats ? (
                 <div className="flex gap-4 flex-wrap my-4">
-                    <button
-                        type="button"
-                        onClick={() => setFilter("ALL")}
-                        className={`tile ${filter === "ALL" ? TILE_ACTIVE.ALL : ""}`}
-                        title="Show all entries"
-                    >
+                    <button type="button" onClick={() => setFilter("ALL")}
+                        className={`tile ${filter === "ALL" ? TILE_ACTIVE.ALL : ""}`}>
                         <div className="stat-label">Total</div>
                         <div className="stat-value">{stats.total}</div>
                     </button>
@@ -296,22 +281,22 @@ export default function Entries() {
                     {([
                         ["Planning", "PLANNING"],
                         ["Playing", "PLAYING"],
-                        ["Paused", "PAUSED"],
+                        ["Played", "PLAYED"],
                         ["Dropped", "DROPPED"],
                         ["Completed", "COMPLETED"],
                     ] as const).map(([label, key]) => (
                         <button
                             key={key}
                             type="button"
-                            onClick={() => setFilter(key)}
-                            className={`tile ${filter === key ? TILE_ACTIVE[key] : ""}`}
+                            onClick={() => setFilter(key as Status)}
+                            className={`tile ${filter === key ? TILE_ACTIVE[key as Status] : ""}`}
                             title={`Show ${label.toLowerCase()} entries`}
                         >
                             <div className="stat-label">{label}</div>
                             <div className="stat-value">
                                 {key === "PLANNING" && stats.planning}
                                 {key === "PLAYING" && stats.playing}
-                                {key === "PAUSED" && stats.paused}
+                                {key === "PLAYED" && stats.played}
                                 {key === "DROPPED" && stats.dropped}
                                 {key === "COMPLETED" && stats.completed}
                             </div>
@@ -327,17 +312,14 @@ export default function Entries() {
                 <div className="my-2 text-sm muted">Stats not loaded.</div>
             )}
 
-            {/* Add entry (with RAWG search) */}
+            {/* Add entry */}
             <form onSubmit={add} className="flex gap-2 items-center my-3">
                 <div className="relative" ref={dropdownRef}>
                     <input
                         ref={searchInputRef}
                         placeholder="Search games by title"
                         value={query}
-                        onChange={(e) => {
-                            setQuery(e.target.value);
-                            setSelected(null);
-                        }}
+                        onChange={(e) => { setQuery(e.target.value); setSelected(null); }}
                         onFocus={() => { if (results.length > 0) setShowDrop(true); }}
                         className="w-[300px]"
                     />
@@ -392,7 +374,7 @@ export default function Entries() {
 
             <div className="muted">{msg}</div>
 
-            {/* List / skeleton / empty */}
+            {/* List */}
             {loading ? (
                 <ul className="list-none p-0 mt-3">
                     {Array.from({ length: 3 }).map((_, i) => (
@@ -460,7 +442,6 @@ export default function Entries() {
                                     </div>
                                 </div>
 
-                                {/* Editor */}
                                 <div className="mt-3 grid grid-cols-[110px_1fr_140px_140px_auto] gap-2 items-start">
                                     <div>
                                         <label className="text-xs muted">Score (0–10)</label>
@@ -519,9 +500,7 @@ export default function Entries() {
 
                                     <div className="flex gap-2 items-end justify-end">
                                         <button onClick={() => saveAll(en.id)} className="btn-primary">Save</button>
-                                        <button type="button" onClick={() => resetEdit(en.id)} className="btn-outline">
-                                            Reset
-                                        </button>
+                                        <button type="button" onClick={() => resetEdit(en.id)} className="btn-outline">Reset</button>
                                     </div>
                                 </div>
                             </li>

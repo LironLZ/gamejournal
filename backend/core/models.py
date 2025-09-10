@@ -23,7 +23,7 @@ class GameEntry(models.Model):
     class Status(models.TextChoices):
         PLANNING = "PLANNING", "Planning"
         PLAYING = "PLAYING", "Playing"
-        PAUSED = "PAUSED", "Paused"
+        PLAYED = "PLAYED", "Played"          # <- renamed from PAUSED
         DROPPED = "DROPPED", "Dropped"
         COMPLETED = "COMPLETED", "Completed"
 
