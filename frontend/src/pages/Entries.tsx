@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../api";
-import StatusBadge from "../components/StatusBadge";
 
 type Status = "PLANNING" | "PLAYING" | "PAUSED" | "DROPPED" | "COMPLETED";
 
@@ -39,9 +38,37 @@ type GameLite = {
 
 const STATUSES: Status[] = ["PLANNING", "PLAYING", "PAUSED", "DROPPED", "COMPLETED"];
 
+/* Status badges (good contrast in dark) */
+const BADGE: Record<Status, string> = {
+    PLAYING: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
+    PLANNING: "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    PAUSED: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
+    DROPPED: "bg-crimson-100 text-crimson-700 border-crimson-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
+    COMPLETED: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
+};
+
+function StatusBadge({ s }: { s: Status }) {
+    return (
+        <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>
+            {s}
+        </span>
+    );
+}
+
+/* Active tile tints per status */
+const TILE_ACTIVE: Record<Status | "ALL", string> = {
+    ALL: "tile-active",
+    PLANNING: "tile-active border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/20",
+    PLAYING: "tile-active border-sky-200 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20",
+    PAUSED: "tile-active border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20",
+    DROPPED: "tile-active border-crimson-200 bg-crimson-50 dark:border-rose-700 dark:bg-rose-900/20",
+    COMPLETED: "tile-active border-emerald-200 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20",
+};
+
 export default function Entries() {
     const [entries, setEntries] = useState<Entry[]>([]);
     const [stats, setStats] = useState<Stats | null>(null);
+    const [loading, setLoading] = useState(true);
 
     // status filter (driven by tiles too)
     const [filter, setFilter] = useState<"ALL" | Status>("ALL");
@@ -55,6 +82,7 @@ export default function Entries() {
     const [msg, setMsg] = useState("");
     const dropdownRef = useRef<HTMLDivElement | null>(null);
     const debounceRef = useRef<number | null>(null);
+    const searchInputRef = useRef<HTMLInputElement | null>(null);
 
     // per-entry edit state (includes dates)
     type EditState = { score: string; notes: string; started_at: string; finished_at: string };
@@ -86,12 +114,15 @@ export default function Entries() {
     }
 
     async function refresh() {
-        await Promise.all([loadEntries(), loadStats()]);
+        setLoading(true);
+        try {
+            await Promise.all([loadEntries(), loadStats()]);
+        } finally {
+            setLoading(false);
+        }
     }
 
-    useEffect(() => {
-        refresh();
-    }, []);
+    useEffect(() => { refresh(); }, []);
 
     // debounced RAWG search via backend proxy
     useEffect(() => {
@@ -138,7 +169,6 @@ export default function Entries() {
                 setMsg("Pick a game from search first");
                 return;
             }
-
             // If RAWG item, import first
             let gameId = selected.id;
             if (!gameId && selected.source === "rawg" && selected.rawg_id) {
@@ -149,7 +179,6 @@ export default function Entries() {
                 setMsg("Could not resolve a local game id");
                 return;
             }
-
             await api.post("/entries/", { game_id: gameId, status });
             setSelected(null);
             setQuery("");
@@ -237,13 +266,22 @@ export default function Entries() {
                 <button onClick={refresh}>Refresh</button>
             </div>
 
-            {/* Stats bar — clickable tiles */}
-            {stats ? (
+            {/* Tiles */}
+            {loading ? (
+                <div className="flex gap-4 flex-wrap my-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="tile">
+                            <div className="h-3 w-16 rounded bg-zinc-200 dark:bg-zinc-700 mb-2" />
+                            <div className="h-5 w-10 rounded bg-zinc-200 dark:bg-zinc-700" />
+                        </div>
+                    ))}
+                </div>
+            ) : stats ? (
                 <div className="flex gap-4 flex-wrap my-4">
                     <button
                         type="button"
                         onClick={() => setFilter("ALL")}
-                        className={`tile ${filter === "ALL" ? "tile-active" : ""}`}
+                        className={`tile ${filter === "ALL" ? TILE_ACTIVE.ALL : ""}`}
                         title="Show all entries"
                     >
                         <div className="stat-label">Total</div>
@@ -261,7 +299,7 @@ export default function Entries() {
                             key={key}
                             type="button"
                             onClick={() => setFilter(key)}
-                            className={`tile ${filter === key ? "tile-active" : ""}`}
+                            className={`tile ${filter === key ? TILE_ACTIVE[key] : ""}`}
                             title={`Show ${label.toLowerCase()} entries`}
                         >
                             <div className="stat-label">{label}</div>
@@ -288,15 +326,14 @@ export default function Entries() {
             <form onSubmit={add} className="flex gap-2 items-center my-3">
                 <div className="relative" ref={dropdownRef}>
                     <input
+                        ref={searchInputRef}
                         placeholder="Search games by title"
                         value={query}
                         onChange={(e) => {
                             setQuery(e.target.value);
                             setSelected(null);
                         }}
-                        onFocus={() => {
-                            if (results.length > 0) setShowDrop(true);
-                        }}
+                        onFocus={() => { if (results.length > 0) setShowDrop(true); }}
                         className="w-[300px]"
                     />
                     {showDrop && results.length > 0 && (
@@ -315,9 +352,7 @@ export default function Entries() {
                                             width={44}
                                             height={26}
                                             className="object-cover rounded border border-gray-200 dark:border-zinc-700"
-                                            onError={(e) => {
-                                                (e.currentTarget as HTMLImageElement).style.display = "none";
-                                            }}
+                                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                                         />
                                     ) : null}
                                     <div>
@@ -334,16 +369,10 @@ export default function Entries() {
                 </div>
 
                 <select value={status} onChange={(e) => setStatus(e.target.value as Status)} className="w-[160px]">
-                    {STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                            {s}
-                        </option>
-                    ))}
+                    {STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
                 </select>
 
-                <button type="submit" className="btn-primary">
-                    Add
-                </button>
+                <button type="submit" className="btn-primary">Add</button>
             </form>
 
             {selected && (
@@ -358,124 +387,143 @@ export default function Entries() {
 
             <div className="muted">{msg}</div>
 
-            {/* List */}
-            <ul className="list-none p-0 mt-3">
-                {filteredEntries.map((en) => {
-                    const edit = entryEdits[en.id] ?? { score: "", notes: "", started_at: "", finished_at: "" };
-                    return (
-                        <li key={en.id} className="card p-3 mb-3">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    {en.game.cover_url ? (
-                                        <img
-                                            src={en.game.cover_url}
-                                            alt={en.game.title}
-                                            width={80}
-                                            height={45}
-                                            className="object-cover rounded border border-gray-200 dark:border-zinc-700"
-                                            onError={(e) => {
-                                                (e.currentTarget as HTMLImageElement).style.display = "none";
-                                            }}
-                                        />
-                                    ) : null}
-                                    <div>
-                                        <div className="font-semibold">{en.game.title}</div>
-                                        <div className="text-xs flex items-center gap-2">
-                                            <span className="muted">Status:</span> <StatusBadge s={en.status} />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-2">
-                                    <select
-                                        value={en.status}
-                                        onChange={(e) => updateStatus(en.id, e.target.value as Status)}
-                                        className="w-[160px]"
-                                    >
-                                        {STATUSES.map((s) => (
-                                            <option key={s} value={s}>
-                                                {s}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <button className="btn-danger" onClick={() => remove(en.id)}>
-                                        Delete
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Editor */}
-                            <div className="mt-3 grid grid-cols-[110px_1fr_140px_140px_auto] gap-2 items-start">
-                                <div>
-                                    <label className="text-xs muted">Score (0–10)</label>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        max={10}
-                                        step={1}
-                                        value={edit.score}
-                                        placeholder="0–10"
-                                        onChange={(e) => updateEdit(en.id, { score: e.target.value })}
-                                        className="w-[100px]"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="text-xs muted">Notes</label>
-                                    <textarea
-                                        rows={2}
-                                        value={edit.notes}
-                                        onChange={(e) => updateEdit(en.id, { notes: e.target.value })}
-                                        placeholder="What did you think?"
-                                        className="w-full resize-y"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="text-xs muted">Started</label>
-                                    <input
-                                        type="date"
-                                        value={edit.started_at}
-                                        onChange={(e) => updateEdit(en.id, { started_at: e.target.value })}
-                                        className="w-[130px]"
-                                    />
-                                    {edit.started_at && (
-                                        <button type="button" className="mt-1" onClick={() => updateEdit(en.id, { started_at: "" })}>
-                                            Clear
-                                        </button>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <label className="text-xs muted">Finished</label>
-                                    <input
-                                        type="date"
-                                        value={edit.finished_at}
-                                        onChange={(e) => updateEdit(en.id, { finished_at: e.target.value })}
-                                        className="w-[130px]"
-                                    />
-                                    {edit.finished_at && (
-                                        <button type="button" className="mt-1" onClick={() => updateEdit(en.id, { finished_at: "" })}>
-                                            Clear
-                                        </button>
-                                    )}
-                                </div>
-
-                                <div className="flex gap-2 items-end justify-end">
-                                    <button onClick={() => saveAll(en.id)} className="btn-primary">
-                                        Save
-                                    </button>
-                                    <button type="button" onClick={() => resetEdit(en.id)} className="btn-outline">
-                                        Reset
-                                    </button>
+            {/* List / skeleton / empty */}
+            {loading ? (
+                <ul className="list-none p-0 mt-3">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <li key={i} className="card p-3 mb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-20 h-12 rounded bg-zinc-200 dark:bg-zinc-700" />
+                                <div className="flex-1">
+                                    <div className="h-4 w-48 rounded bg-zinc-200 dark:bg-zinc-700 mb-2" />
+                                    <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
                                 </div>
                             </div>
                         </li>
-                    );
-                })}
-            </ul>
+                    ))}
+                </ul>
+            ) : filteredEntries.length === 0 ? (
+                <div className="card p-6 mt-4 text-center">
+                    <h3 className="text-lg font-semibold mb-1">No entries match this view</h3>
+                    <p className="muted mb-3">Add your first game or change the filter.</p>
+                    <div className="flex items-center justify-center gap-2">
+                        <button
+                            className="btn-primary"
+                            onClick={() => {
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                                setTimeout(() => searchInputRef.current?.focus(), 250);
+                            }}
+                        >
+                            Search games
+                        </button>
+                        {filter !== "ALL" && (
+                            <button className="btn-outline" onClick={() => setFilter("ALL")}>Clear filter</button>
+                        )}
+                    </div>
+                </div>
+            ) : (
+                <ul className="list-none p-0 mt-3">
+                    {filteredEntries.map((en) => {
+                        const edit = entryEdits[en.id] ?? { score: "", notes: "", started_at: "", finished_at: "" };
+                        return (
+                            <li key={en.id} className="card p-3 mb-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        {en.game.cover_url ? (
+                                            <img
+                                                src={en.game.cover_url}
+                                                alt={en.game.title}
+                                                width={80}
+                                                height={45}
+                                                className="object-cover rounded border border-gray-200 dark:border-zinc-700"
+                                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                            />
+                                        ) : null}
+                                        <div>
+                                            <div className="font-semibold">{en.game.title}</div>
+                                            <div className="text-xs flex items-center gap-2">
+                                                <span className="muted">Status:</span> <StatusBadge s={en.status} />
+                                            </div>
+                                        </div>
+                                    </div>
 
-            {filteredEntries.length === 0 && <p className="mt-2">No entries match this filter.</p>}
+                                    <div className="flex gap-2">
+                                        <select value={en.status} onChange={(e) => updateStatus(en.id, e.target.value as Status)} className="w-[160px]">
+                                            {STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
+                                        </select>
+                                        <button className="btn-danger" onClick={() => remove(en.id)}>Delete</button>
+                                    </div>
+                                </div>
+
+                                {/* Editor */}
+                                <div className="mt-3 grid grid-cols-[110px_1fr_140px_140px_auto] gap-2 items-start">
+                                    <div>
+                                        <label className="text-xs muted">Score (0–10)</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={10}
+                                            step={1}
+                                            value={edit.score}
+                                            placeholder="0–10"
+                                            onChange={(e) => updateEdit(en.id, { score: e.target.value })}
+                                            className="w-[100px]"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs muted">Notes</label>
+                                        <textarea
+                                            rows={2}
+                                            value={edit.notes}
+                                            onChange={(e) => updateEdit(en.id, { notes: e.target.value })}
+                                            placeholder="What did you think?"
+                                            className="w-full resize-y"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs muted">Started</label>
+                                        <input
+                                            type="date"
+                                            value={edit.started_at}
+                                            onChange={(e) => updateEdit(en.id, { started_at: e.target.value })}
+                                            className="w-[130px]"
+                                        />
+                                        {edit.started_at && (
+                                            <button type="button" className="mt-1" onClick={() => updateEdit(en.id, { started_at: "" })}>
+                                                Clear
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs muted">Finished</label>
+                                        <input
+                                            type="date"
+                                            value={edit.finished_at}
+                                            onChange={(e) => updateEdit(en.id, { finished_at: e.target.value })}
+                                            className="w-[130px]"
+                                        />
+                                        {edit.finished_at && (
+                                            <button type="button" className="mt-1" onClick={() => updateEdit(en.id, { finished_at: "" })}>
+                                                Clear
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="flex gap-2 items-end justify-end">
+                                        <button onClick={() => saveAll(en.id)} className="btn-primary">Save</button>
+                                        <button type="button" onClick={() => resetEdit(en.id)} className="btn-outline">
+                                            Reset
+                                        </button>
+                                    </div>
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
         </div>
     );
 }

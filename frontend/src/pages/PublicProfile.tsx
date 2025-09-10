@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import api from "../api";
-import StatusBadge from "../components/StatusBadge";
 
 type Status = "PLANNING" | "PLAYING" | "PAUSED" | "DROPPED" | "COMPLETED";
 
@@ -14,17 +13,37 @@ type Entry = {
 type ProfilePayload =
     | {
         user: { username: string; joined: string };
-        stats: {
-            total: number;
-            planning: number;
-            playing: number;
-            paused: number;
-            dropped: number;
-            completed: number;
-        };
+        stats: { total: number; planning: number; playing: number; paused: number; dropped: number; completed: number };
         entries: Entry[];
     }
     | { detail: string };
+
+/* Tailwind status badge (with dark variants) */
+const BADGE: Record<Status, string> = {
+    PLAYING: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
+    PLANNING: "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    PAUSED: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
+    DROPPED: "bg-crimson-100 text-crimson-700 border-crimson-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
+    COMPLETED: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
+};
+
+function StatusBadge({ s }: { s: Status }) {
+    return (
+        <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>
+            {s}
+        </span>
+    );
+}
+
+/* Tile active tints */
+const TILE_ACTIVE: Record<Status | "ALL", string> = {
+    ALL: "tile-active",
+    PLANNING: "tile-active border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/20",
+    PLAYING: "tile-active border-sky-200 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20",
+    PAUSED: "tile-active border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20",
+    DROPPED: "tile-active border-crimson-200 bg-crimson-50 dark:border-rose-700 dark:bg-rose-900/20",
+    COMPLETED: "tile-active border-emerald-200 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20",
+};
 
 export default function PublicProfile() {
     const { username = "" } = useParams<{ username: string }>();
@@ -50,21 +69,53 @@ export default function PublicProfile() {
                 if (mounted) setLoading(false);
             }
         })();
-        return () => {
-            mounted = false;
-        };
+        return () => { mounted = false; };
     }, [username]);
 
-    if (loading) return <div className="p-6">Loading…</div>;
-    if (err) return <div className="p-6 text-crimson-600">Error: {err}</div>;
-    if (!data) return <div className="p-6">No data.</div>;
-    if ("detail" in data) return <div className="p-6 text-crimson-600">{(data as any).detail}</div>;
+    if (loading) {
+        return (
+            <div className="container-page">
+                <div className="flex justify-between items-baseline my-2 mb-4">
+                    <div>
+                        <div className="h-6 w-48 rounded bg-zinc-200 dark:bg-zinc-700 mb-2" />
+                        <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </div>
+                    <div className="h-5 w-20 rounded bg-zinc-200 dark:bg-zinc-700" />
+                </div>
+
+                <div className="flex gap-4 flex-wrap my-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="tile">
+                            <div className="h-3 w-16 rounded bg-zinc-200 dark:bg-zinc-700 mb-2" />
+                            <div className="h-5 w-10 rounded bg-zinc-200 dark:bg-zinc-700" />
+                        </div>
+                    ))}
+                </div>
+
+                <ul className="list-none p-0 m-0">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <li key={i} className="card p-3 mb-3">
+                            <div className="flex gap-3">
+                                <div className="w-[72px] h-[72px] rounded-lg bg-zinc-200 dark:bg-zinc-700" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="h-4 w-44 rounded bg-zinc-200 dark:bg-zinc-700 mb-2" />
+                                    <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+                                </div>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        );
+    }
+
+    if (err) return <div className="container-page p-6 text-crimson-600">Error: {err}</div>;
+    if (!data) return <div className="container-page p-6">No data.</div>;
+    if ("detail" in data) return <div className="container-page p-6 text-crimson-600">{(data as any).detail}</div>;
 
     const { user, stats, entries } = data;
     const joinedPretty = new Date(user.joined).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
+        year: "numeric", month: "short", day: "2-digit",
     });
 
     const visible = filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
@@ -79,17 +130,15 @@ export default function PublicProfile() {
                         Joined <b>{joinedPretty}</b>
                     </div>
                 </div>
-                <Link to="/entries" className="nav-link">
-                    Back to app
-                </Link>
+                <Link to="/entries" className="nav-link">Back to app</Link>
             </div>
 
-            {/* Stat tiles (brand highlight) */}
+            {/* Stat tiles */}
             <div className="flex gap-4 flex-wrap my-4">
                 <button
                     type="button"
                     onClick={() => setFilter("ALL")}
-                    className={`tile ${filter === "ALL" ? "tile-active" : ""}`}
+                    className={`tile ${filter === "ALL" ? TILE_ACTIVE.ALL : ""}`}
                     title="Show all entries"
                 >
                     <div className="stat-label">Total</div>
@@ -107,7 +156,7 @@ export default function PublicProfile() {
                         key={key}
                         type="button"
                         onClick={() => setFilter(key)}
-                        className={`tile ${filter === key ? "tile-active" : ""}`}
+                        className={`tile ${filter === key ? TILE_ACTIVE[key] : ""}`}
                         title={`Show ${label.toLowerCase()} entries`}
                     >
                         <div className="stat-label">{label}</div>
@@ -116,34 +165,39 @@ export default function PublicProfile() {
                 ))}
             </div>
 
-            {/* List */}
-            <ul className="list-none p-0 m-0">
-                {visible.map((en) => (
-                    <li key={en.id} className="card p-3 mb-3">
-                        <div className="flex gap-3">
-                            {en.game.cover_url ? (
-                                <img
-                                    src={en.game.cover_url}
-                                    alt={en.game.title}
-                                    className="w-[72px] h-[72px] object-cover rounded-lg border border-gray-200 dark:border-zinc-700"
-                                    onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
-                                />
-                            ) : null}
-                            <div className="flex-1 min-w-0">
-                                <div className="font-bold text-base leading-tight">
-                                    {en.game.title} {en.game.release_year ? `(${en.game.release_year})` : ""}
-                                </div>
-                                <div className="flex items-center gap-2 mt-1 flex-wrap text-sm">
-                                    <span className="muted text-xs">Status:</span>
-                                    <StatusBadge s={en.status} />
+            {/* List / empty */}
+            {visible.length === 0 ? (
+                <div className="card p-6 mt-4 text-center">
+                    <h3 className="text-lg font-semibold mb-1">No entries in this view</h3>
+                    <p className="muted">Try a different filter.</p>
+                </div>
+            ) : (
+                <ul className="list-none p-0 m-0">
+                    {visible.map((en) => (
+                        <li key={en.id} className="card p-3 mb-3">
+                            <div className="flex gap-3">
+                                {en.game.cover_url ? (
+                                    <img
+                                        src={en.game.cover_url}
+                                        alt={en.game.title}
+                                        className="w-[72px] h-[72px] object-cover rounded-lg border border-gray-200 dark:border-zinc-700"
+                                        onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+                                    />
+                                ) : null}
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-base leading-tight">
+                                        {en.game.title} {en.game.release_year ? `(${en.game.release_year})` : ""}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap text-sm">
+                                        <span className="muted text-xs">Status:</span>
+                                        <StatusBadge s={en.status} />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </li>
-                ))}
-            </ul>
-
-            {visible.length === 0 && <p className="mt-4">No entries yet.</p>}
+                        </li>
+                    ))}
+                </ul>
+            )}
         </div>
     );
 }

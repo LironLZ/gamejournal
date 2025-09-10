@@ -35,6 +35,7 @@ function Register() {
     <form onSubmit={submit} className="max-w-sm mx-auto mt-10 card p-4">
       <h2 className="text-xl font-semibold mb-2">Register</h2>
       <input
+        type="text"                     /* ensure proper styling + readable text */
         className="input w-full my-2"
         placeholder="Username"
         value={username}
@@ -78,6 +79,7 @@ function Login() {
     <form onSubmit={submit} className="max-w-sm mx-auto mt-10 card p-4">
       <h2 className="text-xl font-semibold mb-2">Login</h2>
       <input
+        type="text"                     /* ensure proper styling + readable text */
         className="input w-full my-2"
         placeholder="Username"
         value={username}
