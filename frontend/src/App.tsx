@@ -187,7 +187,9 @@ export default function App() {
       <Routes>
         <Route path="/u/:username" element={<PublicProfile />} />
         <Route path="/discover" element={<Discover />} />
-        <Route path="/game/:id" element={<GameDetails />} />
+
+        {/* ✅ make the param match GameDetails.tsx */}
+        <Route path="/game/:gameId" element={<GameDetails />} />
 
         {/* Redirect old /games to Discover to avoid 404s */}
         <Route path="/games" element={<Navigate to="/discover" replace />} />

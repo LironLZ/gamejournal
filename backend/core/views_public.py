@@ -1,28 +1,16 @@
 # backend/core/views_public.py
 from datetime import timedelta
-
 from django.db.models import Avg, Count, Max, Q
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-
 from .models import Game, GameEntry
-
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def discover_games(request):
-    """
-    Public feed of games with aggregate stats.
-
-    Query params:
-      - sort: trending | top | new | popular  (default: trending)
-      - q:    search term for title (optional)
-      - limit: 1..100 (default 24)
-      - offset: >=0 (default 0)
-    """
     sort = (request.GET.get("sort") or "trending").lower()
     q = (request.GET.get("q") or "").strip()
 
@@ -41,7 +29,7 @@ def discover_games(request):
         qs = qs.filter(title__icontains=q)
 
     now = timezone.now()
-    cutoff = now - timedelta(days=90)  # “recent” window for trending
+    cutoff = now - timedelta(days=90)
 
     qs = qs.annotate(
         ratings_count=Count("entries", filter=Q(entries__score__isnull=False)),
@@ -53,7 +41,6 @@ def discover_games(request):
     if sort == "trending":
         qs = qs.order_by("-recent_count", "-ratings_count", "-last_entry_at", "title")
     elif sort == "top":
-        # show games with at least 1 rating
         qs = qs.filter(ratings_count__gte=1).order_by("-avg_score", "-ratings_count", "title")
     elif sort == "new":
         qs = qs.order_by("-release_year", "-recent_count", "-ratings_count", "title")
@@ -63,35 +50,21 @@ def discover_games(request):
         qs = qs.order_by("-recent_count", "-ratings_count", "-last_entry_at", "title")
 
     slice_qs = qs[offset: offset + limit]
-    data = list(
-        slice_qs.values(
-            "id",
-            "title",
-            "release_year",
-            "cover_url",
-            "avg_score",
-            "ratings_count",
-            "last_entry_at",
-        )
-    )
+    data = list(slice_qs.values(
+        "id", "title", "release_year", "cover_url",
+        "avg_score", "ratings_count", "last_entry_at",
+    ))
     return Response(data)
-
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
-def game_detail(request, game_id: int):
-    """
-    Public detail for a single game: basic fields, aggregate stats and recent entries.
-    """
+def game_details(request, game_id: int):
     game = get_object_or_404(Game, id=game_id)
 
-    entries_qs = GameEntry.objects.filter(game=game).select_related("user")
-
-    stats = entries_qs.aggregate(
+    agg = GameEntry.objects.filter(game=game).aggregate(
         ratings_count=Count("id", filter=Q(score__isnull=False)),
         avg_score=Avg("score", filter=Q(score__isnull=False)),
         last_entry_at=Max("updated_at"),
-
         planning=Count("id", filter=Q(status=GameEntry.Status.PLANNING)),
         playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
         played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),
@@ -99,18 +72,21 @@ def game_detail(request, game_id: int):
         completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
     )
 
-    # keep it small & anonymous-ish; include score + note
-    recent_entries = list(
-        entries_qs.order_by("-updated_at")[:20].values(
-            username=Q("user__username"),
-            status=Q("status"),
-            score=Q("score"),
-            notes=Q("notes"),
-            started_at=Q("started_at"),
-            finished_at=Q("finished_at"),
-            updated_at=Q("updated_at"),
-        )
+    recent_qs = (
+        GameEntry.objects
+        .filter(game=game)
+        .select_related("user")
+        .order_by("-updated_at")[:50]
     )
+    entries = [{
+        "username": en.user.username,
+        "status": en.status,
+        "score": en.score,
+        "notes": en.notes,
+        "started_at": en.started_at.isoformat() if en.started_at else None,
+        "finished_at": en.finished_at.isoformat() if en.finished_at else None,
+        "updated_at": en.updated_at.isoformat(),
+    } for en in recent_qs]
 
     return Response({
         "game": {
@@ -119,6 +95,6 @@ def game_detail(request, game_id: int):
             "release_year": game.release_year,
             "cover_url": game.cover_url,
         },
-        "stats": stats,
-        "entries": recent_entries,
+        "stats": agg,
+        "entries": entries,
     })
