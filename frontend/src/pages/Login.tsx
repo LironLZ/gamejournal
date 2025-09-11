@@ -1,4 +1,3 @@
-// frontend/src/pages/Login.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
@@ -13,15 +12,16 @@ export default function Login() {
     const [p, setP] = useState("");
     const [err, setErr] = useState<string | null>(null);
 
-    // ⬇️ toggle password form via env (prod = false)
+    // show password form only when enabled (dev)
     const enablePw = import.meta.env.VITE_ENABLE_PASSWORD_LOGIN === "true";
 
-    // --- Google Identity Services ---
     useEffect(() => {
-        const script = document.createElement("script");
+        // ✅ type the script element explicitly to appease TS
+        const script = document.createElement("script") as HTMLScriptElement;
         script.src = "https://accounts.google.com/gsi/client";
         script.async = true;
         script.defer = true;
+
         script.onload = () => {
             if (!window.google) return;
             const clientId = import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID;
@@ -33,23 +33,19 @@ export default function Login() {
                 client_id: clientId,
                 callback: async (resp: any) => {
                     try {
-                        const { data } = await api.post("/auth/google/", {
-                            credential: resp.credential,
-                        });
+                        const { data } = await api.post("/auth/google/", { credential: resp.credential });
                         localStorage.setItem("access", data.access);
                         localStorage.setItem("refresh", data.refresh);
-                        if (data.created) {
-                            nav("/setup/username", { replace: true });
-                        } else {
-                            nav("/entries", { replace: true });
-                        }
+                        nav(data.created ? "/setup/username" : "/entries", { replace: true });
                     } catch (e: any) {
                         console.error(e);
                         setErr(e?.response?.data?.detail || "Google sign-in failed");
                     }
                 },
             });
-            const mount = document.getElementById("googleBtn");
+
+            // ✅ null-safe mount for the Google button
+            const mount = document.getElementById("googleBtn") as HTMLElement | null;
             if (mount) {
                 window.google.accounts.id.renderButton(mount, {
                     theme: "outline",
@@ -59,11 +55,11 @@ export default function Login() {
                 });
             }
         };
+
         document.body.appendChild(script);
-        return () => document.body.removeChild(script);
+        return () => { document.body.removeChild(script); };
     }, [nav]);
 
-    // optional password login (dev only)
     async function pwLogin(e: React.FormEvent) {
         e.preventDefault();
         setErr(null);
@@ -87,7 +83,6 @@ export default function Login() {
                     <div id="googleBtn" />
                 </div>
 
-                {/* Divider + password form shown only when enabled (dev) */}
                 {enablePw && (
                     <>
                         <div className="flex items-center gap-3">
