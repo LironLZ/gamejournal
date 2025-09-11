@@ -9,7 +9,7 @@ import GameDetails from "./pages/GameDetails";
 import ThemeToggle from "./ThemeToggle";
 import LoginPage from "./pages/Login";
 import ChooseUsername from "./pages/ChooseUsername";
-import AvatarSettings from "./pages/AvatarSettings"; // NEW
+import AvatarSettings from "./pages/AvatarSettings"; // edit profile
 
 // toggle Register link/page from env
 const enableRegister = import.meta.env.VITE_ENABLE_REGISTER === "true";
@@ -55,7 +55,9 @@ function Register() {
         value={password}
         onChange={(e) => setP(e.target.value)}
       />
-      <button className="btn-primary mt-2" type="submit">Sign up</button>
+      <button className="btn-primary mt-2" type="submit">
+        Sign up
+      </button>
       <div className="mt-2 text-zinc-600 dark:text-zinc-300 text-sm">{msg}</div>
     </form>
   );
@@ -68,12 +70,31 @@ export default function App() {
   const authed = !!localStorage.getItem("access");
 
   useEffect(() => {
-    if (!authed) { setUsername(null); setAvatar(null); return; }
+    if (!authed) {
+      setUsername(null);
+      setAvatar(null);
+      return;
+    }
     (async () => {
       try {
-        const { data } = await api.get("/auth/whoami/");
-        setUsername(data.user);
-        setAvatar(data.avatar_url || null);
+        // 1) whoami -> username
+        const who = await api.get("/auth/whoami/");
+        const u = who.data?.user as string | undefined;
+        if (!u) {
+          setUsername(null);
+          setAvatar(null);
+          return;
+        }
+        setUsername(u);
+
+        // 2) fetch public profile to get avatar_url
+        try {
+          const prof = await api.get(`/users/${encodeURIComponent(u)}/`);
+          const url = (prof.data?.user?.avatar_url as string | null) || null;
+          setAvatar(url);
+        } catch {
+          setAvatar(null);
+        }
       } catch {
         setUsername(null);
         setAvatar(null);
@@ -92,8 +113,12 @@ export default function App() {
     <div className="min-h-screen">
       <nav className="sticky top-0 z-10 border-b bg-white/70 backdrop-blur dark:bg-zinc-900/70 dark:border-zinc-800">
         <div className="max-w-[960px] mx-auto px-3 h-12 flex items-center gap-4">
-          <Link className="nav-link" to="/discover">Discover</Link>
-          <Link className="nav-link" to="/entries">Entries</Link>
+          <Link className="nav-link" to="/discover">
+            Discover
+          </Link>
+          <Link className="nav-link" to="/entries">
+            Entries
+          </Link>
 
           <div className="ml-auto flex items-center gap-3">
             <ThemeToggle />
@@ -107,9 +132,15 @@ export default function App() {
                   />
                 ) : null}
                 <span className="text-sm opacity-80">
-                  Hello{username ? <>,&nbsp;<b>{username}</b></> : ""}
+                  Hello{username ? (
+                    <>
+                      ,&nbsp;<b>{username}</b>
+                    </>
+                  ) : null}
                 </span>
-                <Link className="nav-link" to="/settings/avatar">Edit avatar</Link>
+                <Link className="nav-link" to="/settings/profile">
+                  Edit profile
+                </Link>
                 {username && (
                   <Link
                     className="nav-link"
@@ -120,12 +151,20 @@ export default function App() {
                     Public profile
                   </Link>
                 )}
-                <button className="btn-outline" onClick={logout}>Logout</button>
+                <button className="btn-outline" onClick={logout}>
+                  Logout
+                </button>
               </>
             ) : (
               <>
-                {enableRegister && <Link className="nav-link" to="/register">Register</Link>}
-                <Link className="nav-link" to="/login">Login</Link>
+                {enableRegister && (
+                  <Link className="nav-link" to="/register">
+                    Register
+                  </Link>
+                )}
+                <Link className="nav-link" to="/login">
+                  Login
+                </Link>
               </>
             )}
           </div>
@@ -137,14 +176,44 @@ export default function App() {
         <Route path="/discover" element={<Discover />} />
         <Route path="/game/:gameId" element={<GameDetails />} />
         <Route path="/games" element={<Navigate to="/discover" replace />} />
-        <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Discover />} />
+        <Route
+          path="/"
+          element={authed ? <Navigate to="/entries" replace /> : <Discover />}
+        />
 
-        <Route path="/register" element={enableRegister ? <Register /> : <Navigate to="/login" replace />} />
+        <Route
+          path="/register"
+          element={enableRegister ? <Register /> : <Navigate to="/login" replace />}
+        />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/setup/username" element={<ProtectedRoute><ChooseUsername /></ProtectedRoute>} />
+        {/* Keep first-login page hidden behind auth */}
+        <Route
+          path="/setup/username"
+          element={
+            <ProtectedRoute>
+              <ChooseUsername />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/entries" element={<ProtectedRoute><Entries /></ProtectedRoute>} />
-        <Route path="/settings/avatar" element={<ProtectedRoute><AvatarSettings /></ProtectedRoute>} />
+        <Route
+          path="/entries"
+          element={
+            <ProtectedRoute>
+              <Entries />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Edit profile (avatar) */}
+        <Route
+          path="/settings/profile"
+          element={
+            <ProtectedRoute>
+              <AvatarSettings />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="*" element={<div className="p-6">Not found</div>} />
       </Routes>
