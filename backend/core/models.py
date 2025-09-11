@@ -20,6 +20,7 @@ class Game(models.Model):
     def __str__(self):
         return self.title
 
+
 class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
@@ -27,16 +28,18 @@ class Profile(models.Model):
     def __str__(self):
         return f"Profile({self.user.username})"
 
+
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_profile_for_user(sender, instance, created, **kwargs):
     if created:
         Profile.objects.get_or_create(user=instance)
 
+
 class GameEntry(models.Model):
     class Status(models.TextChoices):
         PLANNING = "PLANNING", "Planning"
         PLAYING = "PLAYING", "Playing"
-        PLAYED = "PLAYED", "Played"          # <- renamed from PAUSED
+        PLAYED = "PLAYED", "Played"
         DROPPED = "DROPPED", "Dropped"
         COMPLETED = "COMPLETED", "Completed"
 
@@ -56,7 +59,7 @@ class GameEntry(models.Model):
     class Meta:
         unique_together = ("user", "game")
         verbose_name = "Game entry"
-        verbose_name_plural = "Game entries"  # <-- fixes admin label
+        verbose_name_plural = "Game entries"
 
     def __str__(self):
         return f"{self.user} — {self.game} ({self.status})"

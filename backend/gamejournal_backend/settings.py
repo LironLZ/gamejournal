@@ -143,15 +143,11 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 if not DEBUG:
     STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# Media: default to local disk; switch to Cloudinary if CLOUDINARY_URL is set
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 if CLOUDINARY_URL:
-    # When cloudinary URL exists, store media files there
     DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
-    # CLOUDINARY_URL env var is enough; explicit dict not required.
-    # (You can still set CLOUDINARY_STORAGE = {...} if you prefer.)
 
 # --- Security / proxy --------------------------------------------------------
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

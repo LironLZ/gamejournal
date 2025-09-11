@@ -1,4 +1,3 @@
-# backend/core/urls.py
 from django.conf import settings
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -19,10 +18,13 @@ urlpatterns = [
     # SSO (always on)
     path('auth/google/', views_auth.google_login, name='google-login'),
 
+    # Always expose refresh for SSO token renewal
+    path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
     # account
     path('auth/whoami/', views.whoami, name='whoami'),
     path('account/username/', views.update_username, name='update-username'),
-    path('account/avatar/', views.upload_avatar, name='upload-avatar'),  # NEW
+    path('account/avatar/', views.upload_avatar, name='upload-avatar'),
 
     # stats
     path('stats/', views.my_stats, name='my-stats'),
@@ -41,10 +43,9 @@ urlpatterns = [
     path('public/games/<int:game_id>/', views_public.game_details, name='public-game-details'),
 ]
 
-# Password/JWT endpoints are exposed only if explicitly enabled (dev)
+# Dev-only password endpoints (optional)
 if getattr(settings, "ALLOW_PASSWORD_LOGIN", False):
     urlpatterns += [
         path('auth/register/', views.register, name='register'),
         path('auth/login/',    TokenObtainPairView.as_view(), name='token_obtain_pair'),
-        path('auth/refresh/',  TokenRefreshView.as_view(),    name='token_refresh'),
     ]

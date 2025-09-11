@@ -9,7 +9,11 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
 
 from rest_framework import status, viewsets, permissions
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.decorators import (
+    api_view, permission_classes, authentication_classes,
+    parser_classes
+)
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -44,11 +48,6 @@ def ping(request):
 @permission_classes([AllowAny])
 @authentication_classes([])  # ignore Authorization header here
 def register(request):
-    """
-    Public password registration.
-    In production we usually keep this OFF (SSO-only) by setting ALLOW_REGISTRATION=false.
-    Flip it on in dev or if you want to allow password signups.
-    """
     if not settings.ALLOW_REGISTRATION:
         return Response({"detail": "Registration is closed."}, status=status.HTTP_403_FORBIDDEN)
 
@@ -62,17 +61,21 @@ def register(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def whoami(request):
-    return Response({"user": request.user.username})
+    """Return basic identity + avatar URL for navbar/settings."""
+    avatar_url = None
+    prof = getattr(request.user, "profile", None)
+    if prof and prof.avatar:
+        try:
+            avatar_url = request.build_absolute_uri(prof.avatar.url)
+        except Exception:
+            avatar_url = None
+    return Response({"user": request.user.username, "avatar_url": avatar_url})
 
 
-# ---------- Account: change username (first login nickname picker) ----------
+# ---------- Account: change username (kept server-side, hidden on UI) ----------
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def update_username(request):
-    """
-    PATCH /api/account/username/  { "username": "new_handle" }
-    Rules: 3–20 chars, letters/numbers/underscore. Unique (case-insensitive).
-    """
     new = (request.data.get("username") or "").strip()
     if not re.fullmatch(r"[A-Za-z0-9_]{3,20}", new):
         return Response({"detail": "Username must be 3–20 chars; letters, numbers, '_' only."}, status=400)
@@ -90,6 +93,7 @@ def update_username(request):
 # ---------- Account: upload avatar ----------
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
 def upload_avatar(request):
     """
     POST multipart/form-data with field 'avatar' (png/jpg/webp).
@@ -124,9 +128,6 @@ def upload_avatar(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_stats(request):
-    """
-    Private dashboard stats for the authenticated user.
-    """
     qs = GameEntry.objects.filter(user=request.user)
     data = {
         "total": qs.count(),
@@ -143,10 +144,6 @@ def my_stats(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def public_profile(request, username: str):
-    """
-    Public read-only profile for a given username.
-    Returns user basics, aggregate stats (no minutes), and entries (with slim game info).
-    """
     User = get_user_model()
     try:
         user = User.objects.get(username=username)
@@ -169,7 +166,6 @@ def public_profile(request, username: str):
         completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
     )
 
-    # include avatar URL if exists
     avatar_url = None
     if hasattr(user, "profile") and user.profile.avatar:
         try:
@@ -194,10 +190,6 @@ def public_profile(request, username: str):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def search_games_external(request):
-    """
-    Proxy to RAWG: /api/search/games/?q=<query>
-    Returns up to 8 results with: rawg_id, title, release_year, background_image.
-    """
     q = (request.query_params.get("q") or "").strip()
     if not q:
         return Response([])
@@ -228,10 +220,6 @@ def search_games_external(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def import_game(request):
-    """
-    Body: {"rawg_id": <int>}
-    Fetch RAWG detail and create/update a local Game; returns the local game info.
-    """
     rawg_id = request.data.get("rawg_id")
     if not rawg_id:
         return Response({"detail": "rawg_id required"}, status=400)
