@@ -20,8 +20,8 @@ SECRET_KEY = os.getenv(
 ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if h]
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),   # was 5m by default
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),     # keep user logged in
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
@@ -57,12 +57,15 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# CORS: allow all in dev; in prod, read allowed origins from env
+# CORS/CSRF: allow all in dev; in prod, read from env
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 else:
     origins = os.getenv("CORS_ALLOWED_ORIGINS", "")
     CORS_ALLOWED_ORIGINS = [o for o in origins.split(",") if o]
+
+    csrf = os.getenv("CSRF_TRUSTED_ORIGINS", "")
+    CSRF_TRUSTED_ORIGINS = [o for o in csrf.split(",") if o]
 
 # --- DRF / OpenAPI -----------------------------------------------------------
 REST_FRAMEWORK = {
@@ -78,16 +81,13 @@ SPECTACULAR_SETTINGS = {
 }
 
 # --- SSO / Auth feature flags ------------------------------------------------
-# If set, Google SSO will verify ID tokens against this client ID.
 GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
-
-# If True, only emails listed in ALLOWED_EMAILS can sign in (good for private demo).
-# If False (default), any Google account can sign in.
 ENFORCE_ALLOWLIST = os.getenv("ENFORCE_ALLOWLIST", "false").lower() == "true"
 ALLOWED_EMAILS = {e.strip().lower() for e in os.getenv("ALLOWED_EMAILS", "").split(",") if e.strip()}
 
-# Toggle password-based registration in production (keep False for SSO-only prod).
+# Password-based endpoints are off in prod by default
 ALLOW_REGISTRATION = os.getenv("ALLOW_REGISTRATION", "false").lower() == "true"
+ALLOW_PASSWORD_LOGIN = os.getenv("ALLOW_PASSWORD_LOGIN", "false").lower() == "true"
 
 ROOT_URLCONF = "gamejournal_backend.urls"
 
@@ -133,11 +133,12 @@ USE_TZ = True
 # --- Static (admin assets) ---------------------------------------------------
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-# Use hashed/compressed static files in prod (requires collectstatic)
 if not DEBUG:
     STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
+# behind Railway's proxy; mark cookies as secure in prod
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
