@@ -12,7 +12,7 @@ type Entry = {
 
 type ProfilePayload =
     | {
-        user: { username: string; joined: string };
+        user: { username: string; joined: string; avatar_url?: string | null };
         stats: { total: number; planning: number; playing: number; played?: number; paused?: number; dropped: number; completed: number };
         entries: Entry[];
     }
@@ -119,13 +119,22 @@ export default function PublicProfile() {
     const playedCount = (stats as any).played ?? (stats as any).paused ?? 0;
     const visible = filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
 
+    const avatar = user.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(user.username)}`;
+
     return (
         <div className="container-page">
-            <div className="flex justify-between items-baseline my-2 mb-4">
-                <div>
-                    <h2 className="m-0 text-2xl font-bold">{user.username} · Public Profile</h2>
-                    <div className="text-sm muted mt-1">
-                        Joined <b>{joinedPretty}</b>
+            <div className="flex justify-between items-center my-2 mb-4">
+                <div className="flex items-center gap-3">
+                    <img
+                        src={avatar}
+                        alt={`${user.username} avatar`}
+                        className="w-12 h-12 rounded-full border"
+                    />
+                    <div>
+                        <h2 className="m-0 text-2xl font-bold">{user.username} · Public Profile</h2>
+                        <div className="text-sm muted mt-1">
+                            Joined <b>{joinedPretty}</b>
+                        </div>
                     </div>
                 </div>
                 <Link to="/entries" className="nav-link">Back to app</Link>

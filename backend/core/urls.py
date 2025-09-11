@@ -22,6 +22,7 @@ urlpatterns = [
     # account
     path('auth/whoami/', views.whoami, name='whoami'),
     path('account/username/', views.update_username, name='update-username'),
+    path('account/avatar/', views.upload_avatar, name='upload-avatar'),  # NEW
 
     # stats
     path('stats/', views.my_stats, name='my-stats'),

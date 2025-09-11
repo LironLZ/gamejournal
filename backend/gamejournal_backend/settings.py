@@ -9,7 +9,7 @@ from datetime import timedelta
 
 # --- Paths / env -------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")  # loads RAWG_API_KEY, etc.
+load_dotenv(BASE_DIR / ".env")  # loads RAWG_API_KEY, GOOGLE_OAUTH_CLIENT_ID, etc.
 
 # Toggle by environment (falls back to safe dev defaults)
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
@@ -43,6 +43,11 @@ INSTALLED_APPS = [
     # local
     "core",
 ]
+
+# Optional: enable Cloudinary if CLOUDINARY_URL is set
+CLOUDINARY_URL = os.getenv("CLOUDINARY_URL", "")
+if CLOUDINARY_URL:
+    INSTALLED_APPS += ["cloudinary", "cloudinary_storage"]
 
 # --- Middleware --------------------------------------------------------------
 MIDDLEWARE = [
@@ -130,13 +135,25 @@ TIME_ZONE = "Asia/Jerusalem"
 USE_I18N = True
 USE_TZ = True
 
-# --- Static (admin assets) ---------------------------------------------------
+# --- Static / Media ----------------------------------------------------------
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Use hashed/compressed static files in prod (requires collectstatic)
 if not DEBUG:
     STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# behind Railway's proxy; mark cookies as secure in prod
+# Media: default to local disk; switch to Cloudinary if CLOUDINARY_URL is set
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+if CLOUDINARY_URL:
+    # When cloudinary URL exists, store media files there
+    DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+    # CLOUDINARY_URL env var is enough; explicit dict not required.
+    # (You can still set CLOUDINARY_STORAGE = {...} if you prefer.)
+
+# --- Security / proxy --------------------------------------------------------
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True

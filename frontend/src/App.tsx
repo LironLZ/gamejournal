@@ -60,29 +60,77 @@ function Register() {
   );
 }
 
-// --- Me (protected) ---
+// --- Me (protected) with avatar upload ---
 function Me() {
   const [user, setUser] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [upMsg, setUpMsg] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
       try {
         const { data } = await api.get("/auth/whoami/");
         setUser(data.user);
+        if (data.user) {
+          const prof = await api.get(`/users/${encodeURIComponent(data.user)}/`);
+          setAvatarUrl((prof.data as any)?.user?.avatar_url || null);
+        }
       } catch {
         setUser(null);
       }
     })();
   }, []);
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { setUpMsg("Max 2MB"); return; }
+
+    const fd = new FormData();
+    fd.append("avatar", file);
+    try {
+      setUpMsg("Uploading…");
+      const { data } = await api.post("/account/avatar/", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setAvatarUrl(data.avatar_url);
+      setUpMsg("Saved!");
+    } catch (err: any) {
+      setUpMsg(err?.response?.data?.detail || "Upload failed");
+    }
+  }
+
   return (
-    <div className="max-w-md mx-auto mt-10 card p-4">
-      <h2 className="text-xl font-semibold mb-2">Me</h2>
-      {user ? <p>Logged in as <b>{user}</b></p> : <p>Loading…</p>}
-      <button
-        className="btn-outline mt-2"
-        onClick={() => { localStorage.clear(); window.location.href = "/login"; }}
-      >
-        Logout
-      </button>
+    <div className="max-w-md mx-auto mt-10 card p-4 space-y-3">
+      <h2 className="text-xl font-semibold">Me</h2>
+      {user ? (
+        <>
+          <div className="flex items-center gap-3">
+            <img
+              src={avatarUrl || "https://api.dicebear.com/8.x/identicon/svg?seed=" + encodeURIComponent(user)}
+              alt="avatar"
+              className="w-16 h-16 rounded-full border"
+            />
+            <div className="text-sm opacity-80">Logged in as <b>{user}</b></div>
+          </div>
+
+          <label className="btn-outline inline-flex items-center gap-2 w-fit mt-2 cursor-pointer">
+            <input type="file" accept="image/*" className="hidden" onChange={onPick} />
+            Upload new photo
+          </label>
+
+          {upMsg && <div className="text-sm opacity-70">{upMsg}</div>}
+
+          <button
+            className="btn-outline mt-4"
+            onClick={() => { localStorage.clear(); window.location.href = "/login"; }}
+          >
+            Logout
+          </button>
+        </>
+      ) : (
+        <p>Loading…</p>
+      )}
     </div>
   );
 }

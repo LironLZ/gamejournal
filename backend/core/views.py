@@ -15,7 +15,7 @@ from rest_framework.response import Response
 
 from drf_spectacular.utils import extend_schema, OpenApiExample
 
-from .models import GameEntry, PlaySession, Game
+from .models import GameEntry, PlaySession, Game, Profile
 from .serializers import (
     RegisterSerializer,
     GameEntrySerializer,
@@ -87,6 +87,39 @@ def update_username(request):
     return Response({"ok": True, "username": u.username})
 
 
+# ---------- Account: upload avatar ----------
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def upload_avatar(request):
+    """
+    POST multipart/form-data with field 'avatar' (png/jpg/webp).
+    Returns: { avatar_url }
+    """
+    f = request.FILES.get("avatar")
+    if not f:
+        return Response({"detail": "No file provided (use 'avatar')."}, status=400)
+
+    if f.size > 2 * 1024 * 1024:  # 2MB
+        return Response({"detail": "File too large (max 2MB)."}, status=400)
+
+    allowed = {"image/jpeg", "image/png", "image/webp"}
+    if f.content_type not in allowed:
+        return Response({"detail": "Only JPG/PNG/WebP allowed."}, status=415)
+
+    profile = getattr(request.user, "profile", None)
+    if profile is None:
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+
+    # stable filename: user-<id>.<ext>
+    _, ext = os.path.splitext(f.name or "")
+    ext = (ext or ".jpg").lower()
+    fname = f"user-{request.user.id}{ext}"
+
+    profile.avatar.save(fname, f, save=True)
+    url = request.build_absolute_uri(profile.avatar.url)
+    return Response({"avatar_url": url}, status=200)
+
+
 # ---------- Stats (private) ----------
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -136,12 +169,21 @@ def public_profile(request, username: str):
         completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
     )
 
+    # include avatar URL if exists
+    avatar_url = None
+    if hasattr(user, "profile") and user.profile.avatar:
+        try:
+            avatar_url = request.build_absolute_uri(user.profile.avatar.url)
+        except Exception:
+            avatar_url = None
+
     entries = PublicEntrySerializer(qs, many=True).data
 
     return Response({
         "user": {
             "username": user.username,
             "joined": user.date_joined.isoformat(),
+            "avatar_url": avatar_url,
         },
         "stats": stats,
         "entries": entries,
