@@ -7,6 +7,11 @@ import PublicProfile from "./pages/PublicProfile";
 import Discover from "./pages/Discover";
 import GameDetails from "./pages/GameDetails";
 import ThemeToggle from "./ThemeToggle";
+import LoginPage from "./pages/Login";
+import ChooseUsername from "./pages/ChooseUsername";
+
+// toggle Register link/page from env
+const enableRegister = import.meta.env.VITE_ENABLE_REGISTER === "true";
 
 // --- Protected route wrapper ---
 function ProtectedRoute({ children }: { children: JSX.Element }) {
@@ -14,7 +19,7 @@ function ProtectedRoute({ children }: { children: JSX.Element }) {
   return authed ? children : <Navigate to="/login" replace />;
 }
 
-// --- Register ---
+// --- Register (keep simple local form; can be hidden with env) ---
 function Register() {
   const nav = useNavigate();
   const [username, setU] = useState("");
@@ -50,48 +55,6 @@ function Register() {
         onChange={(e) => setP(e.target.value)}
       />
       <button className="btn-primary mt-2" type="submit">Sign up</button>
-      <div className="mt-2 text-zinc-600 dark:text-zinc-300 text-sm">{msg}</div>
-    </form>
-  );
-}
-
-// --- Login ---
-function Login() {
-  const nav = useNavigate();
-  const [username, setU] = useState("");
-  const [password, setP] = useState("");
-  const [msg, setMsg] = useState("");
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-      const { data } = await api.post("/auth/login/", { username, password });
-      localStorage.setItem("access", data.access);
-      localStorage.setItem("refresh", data.refresh);
-      nav("/entries");
-    } catch {
-      setMsg("Invalid credentials");
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="max-w-sm mx-auto mt-10 card p-4">
-      <h2 className="text-xl font-semibold mb-2">Login</h2>
-      <input
-        type="text"
-        className="input w-full my-2"
-        placeholder="Username"
-        value={username}
-        onChange={(e) => setU(e.target.value)}
-      />
-      <input
-        type="password"
-        className="input w-full my-2"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setP(e.target.value)}
-      />
-      <button className="btn-primary mt-2" type="submit">Sign in</button>
       <div className="mt-2 text-zinc-600 dark:text-zinc-300 text-sm">{msg}</div>
     </form>
   );
@@ -176,7 +139,7 @@ export default function App() {
               </>
             ) : (
               <>
-                <Link className="nav-link" to="/register">Register</Link>
+                {enableRegister && <Link className="nav-link" to="/register">Register</Link>}
                 <Link className="nav-link" to="/login">Login</Link>
               </>
             )}
@@ -187,22 +150,19 @@ export default function App() {
       <Routes>
         <Route path="/u/:username" element={<PublicProfile />} />
         <Route path="/discover" element={<Discover />} />
-
-        {/* ✅ make the param match GameDetails.tsx */}
         <Route path="/game/:gameId" element={<GameDetails />} />
-
-        {/* Redirect old /games to Discover to avoid 404s */}
         <Route path="/games" element={<Navigate to="/discover" replace />} />
-
-        {/* default: guests -> Discover, authed -> Entries */}
         <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Discover />} />
 
-        <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
+        {/* guard register route by env */}
+        <Route path="/register" element={enableRegister ? <Register /> : <Navigate to="/login" replace />} />
+        {/* login with Google */}
+        <Route path="/login" element={<LoginPage />} />
+        {/* first-login username picker */}
+        <Route path="/setup/username" element={<ProtectedRoute><ChooseUsername /></ProtectedRoute>} />
 
         <Route path="/entries" element={<ProtectedRoute><Entries /></ProtectedRoute>} />
         <Route path="/me" element={<ProtectedRoute><Me /></ProtectedRoute>} />
-
         <Route path="*" element={<div className="p-6">Not found</div>} />
       </Routes>
     </div>

@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views, views_public
+from . import views_auth
 
 router = DefaultRouter()
 router.register(r'entries', views.GameEntryViewSet, basename='entry')
@@ -15,11 +16,17 @@ nested.register(r'sessions', views.PlaySessionViewSet, basename='entry-sessions'
 urlpatterns = [
     path('ping/', views.ping, name='ping'),
 
-    # auth
+    # auth (password/JWT still available for dev)
     path('auth/register/', views.register, name='register'),
     path('auth/login/',    TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/refresh/',  TokenRefreshView.as_view(),    name='token_refresh'),
     path('auth/whoami/',   views.whoami, name='whoami'),
+
+    # Google SSO
+    path('auth/google/',   views_auth.google_login, name='google-login'),
+
+    # account
+    path('account/username/', views.update_username, name='update-username'),
 
     # stats
     path('stats/', views.my_stats, name='my-stats'),

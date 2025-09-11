@@ -1,7 +1,9 @@
 # core/views.py
 import os
+import re
 import requests
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
@@ -42,6 +44,14 @@ def ping(request):
 @permission_classes([AllowAny])
 @authentication_classes([])  # ignore Authorization header here
 def register(request):
+    """
+    Public password registration.
+    In production we usually keep this OFF (SSO-only) by setting ALLOW_REGISTRATION=false.
+    Flip it on in dev or if you want to allow password signups.
+    """
+    if not settings.ALLOW_REGISTRATION:
+        return Response({"detail": "Registration is closed."}, status=status.HTTP_403_FORBIDDEN)
+
     serializer = RegisterSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
@@ -53,6 +63,28 @@ def register(request):
 @permission_classes([IsAuthenticated])
 def whoami(request):
     return Response({"user": request.user.username})
+
+
+# ---------- Account: change username (first login nickname picker) ----------
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def update_username(request):
+    """
+    PATCH /api/account/username/  { "username": "new_handle" }
+    Rules: 3–20 chars, letters/numbers/underscore. Unique (case-insensitive).
+    """
+    new = (request.data.get("username") or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_]{3,20}", new):
+        return Response({"detail": "Username must be 3–20 chars; letters, numbers, '_' only."}, status=400)
+
+    User = get_user_model()
+    if User.objects.filter(username__iexact=new).exists():
+        return Response({"detail": "Username already taken."}, status=409)
+
+    u = request.user
+    u.username = new
+    u.save(update_fields=["username"])
+    return Response({"ok": True, "username": u.username})
 
 
 # ---------- Stats (private) ----------
@@ -67,7 +99,7 @@ def my_stats(request):
         "total": qs.count(),
         "planning": qs.filter(status=GameEntry.Status.PLANNING).count(),
         "playing": qs.filter(status=GameEntry.Status.PLAYING).count(),
-        "played": qs.filter(status=GameEntry.Status.PLAYED).count(),   # ← renamed
+        "played": qs.filter(status=GameEntry.Status.PLAYED).count(),
         "dropped": qs.filter(status=GameEntry.Status.DROPPED).count(),
         "completed": qs.filter(status=GameEntry.Status.COMPLETED).count(),
     }
@@ -95,12 +127,11 @@ def public_profile(request, username: str):
         .order_by("-updated_at")
     )
 
-    # aggregate counts (notice: 'played' now, no 'paused')
     stats = qs.aggregate(
         total=Count("id"),
         planning=Count("id", filter=Q(status=GameEntry.Status.PLANNING)),
         playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
-        played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),        # ← changed
+        played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),
         dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
         completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
     )

@@ -71,10 +71,23 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "GameJournal API",
     "VERSION": "0.1.0",
 }
+
+# --- SSO / Auth feature flags ------------------------------------------------
+# If set, Google SSO will verify ID tokens against this client ID.
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+
+# If True, only emails listed in ALLOWED_EMAILS can sign in (good for private demo).
+# If False (default), any Google account can sign in.
+ENFORCE_ALLOWLIST = os.getenv("ENFORCE_ALLOWLIST", "false").lower() == "true"
+ALLOWED_EMAILS = {e.strip().lower() for e in os.getenv("ALLOWED_EMAILS", "").split(",") if e.strip()}
+
+# Toggle password-based registration in production (keep False for SSO-only prod).
+ALLOW_REGISTRATION = os.getenv("ALLOW_REGISTRATION", "false").lower() == "true"
 
 ROOT_URLCONF = "gamejournal_backend.urls"
 
