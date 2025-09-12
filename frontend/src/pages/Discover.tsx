@@ -1,6 +1,8 @@
+// frontend/src/pages/Discover.tsx
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../api";
+import QuickAdd from "../components/QuickAdd";
 
 type SortKey = "trending" | "top" | "new" | "popular";
 
@@ -23,6 +25,7 @@ const SORTS: { key: SortKey; label: string }[] = [
 
 export default function Discover() {
     const nav = useNavigate();
+
     const [sort, setSort] = useState<SortKey>("trending");
     const [q, setQ] = useState("");
     const [offset, setOffset] = useState(0);
@@ -31,6 +34,15 @@ export default function Discover() {
     const [items, setItems] = useState<DiscoverGame[]>([]);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState("");
+
+    // --- Auth awareness: hide hero CTA when logged in ---
+    const [authed, setAuthed] = useState<boolean>(false);
+    useEffect(() => {
+        const sync = () => setAuthed(!!localStorage.getItem("access"));
+        sync();
+        window.addEventListener("storage", sync);
+        return () => window.removeEventListener("storage", sync);
+    }, []);
 
     useEffect(() => {
         let alive = true;
@@ -53,7 +65,9 @@ export default function Discover() {
             }
         })();
 
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, [sort, q, limit, offset]);
 
     const page = Math.floor(offset / limit) + 1;
@@ -62,26 +76,36 @@ export default function Discover() {
 
     return (
         <div className="container-page">
-            <div className="card p-4 mb-4 flex items-center justify-between gap-3">
-                <div>
-                    <h2 className="text-xl font-bold mb-1">Discover games</h2>
-                    <p className="muted text-sm">
-                        Browse community activity. Sign up to create your own journal and add ratings.
-                    </p>
+            {/* Hero CTA only for guests */}
+            {!authed && (
+                <div className="card p-4 mb-4 flex items-center justify-between gap-3">
+                    <div>
+                        <h2 className="text-xl font-bold mb-1">Discover games</h2>
+                        <p className="muted text-sm">
+                            Browse community activity. Sign up to create your own journal and add ratings.
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Link to="/register" className="btn-primary">
+                            Get started
+                        </Link>
+                        <Link to="/login" className="btn-outline">
+                            Login
+                        </Link>
+                    </div>
                 </div>
-                <div className="flex gap-2">
-                    <a href="/register" className="btn-primary">Get started</a>
-                    <a href="/login" className="btn-outline">Login</a>
-                </div>
-            </div>
+            )}
 
             <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <div className="flex gap-1">
-                    {SORTS.map(s => (
+                    {SORTS.map((s) => (
                         <button
                             key={s.key}
                             type="button"
-                            onClick={() => { setSort(s.key); setOffset(0); }}
+                            onClick={() => {
+                                setSort(s.key);
+                                setOffset(0);
+                            }}
                             className={`tile px-3 py-2 min-w-0 ${sort === s.key ? "tile-active" : ""}`}
                             title={s.label}
                         >
@@ -95,12 +119,18 @@ export default function Discover() {
                         className="w-[260px]"
                         placeholder="Search title…"
                         value={q}
-                        onChange={(e) => { setQ(e.target.value); setOffset(0); }}
+                        onChange={(e) => {
+                            setQ(e.target.value);
+                            setOffset(0);
+                        }}
                     />
                     <button
                         type="button"
                         className="btn-outline"
-                        onClick={() => { setQ(""); setOffset(0); }}
+                        onClick={() => {
+                            setQ("");
+                            setOffset(0);
+                        }}
                         disabled={!q}
                     >
                         Clear
@@ -127,29 +157,45 @@ export default function Discover() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {items.map(g => (
+                    {items.map((g) => (
                         <div
                             key={g.id}
                             role="button"
                             onClick={() => nav(`/game/${g.id}`)}
-                            className="card p-3 cursor-pointer hover:no-underline"
+                            className="card p-3 cursor-pointer hover:no-underline relative"
                             title="View details"
                         >
+                            {/* QuickAdd overlay (click-safe) */}
+                            <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                                <QuickAdd
+                                    gameId={g.id}
+                                    compact
+                                    onSaved={() => {
+                                        // optional: toast or visual tick
+                                    }}
+                                />
+                            </div>
+
                             {g.cover_url ? (
                                 <img
                                     src={g.cover_url}
                                     alt={g.title}
                                     className="w-full h-40 object-cover rounded border border-gray-200 dark:border-zinc-700 mb-3"
-                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                    onError={(e) => {
+                                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                                    }}
                                 />
                             ) : null}
 
                             <div className="flex items-baseline justify-between gap-2">
                                 <div className="font-semibold leading-tight">
-                                    {g.title}{g.release_year ? ` (${g.release_year})` : ""}
+                                    {g.title}
+                                    {g.release_year ? ` (${g.release_year})` : ""}
                                 </div>
                                 {g.avg_score !== null && (
-                                    <span className="pill-indigo">{(Math.round(g.avg_score * 10) / 10).toFixed(1)}</span>
+                                    <span className="pill-indigo">
+                                        {(Math.round(g.avg_score * 10) / 10).toFixed(1)}
+                                    </span>
                                 )}
                             </div>
 

@@ -1,14 +1,22 @@
+# core/urls.py
 from django.conf import settings
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
 from . import views, views_public, views_auth
+from .views import FriendRequestViewSet, FriendsViewSet
 
 router = DefaultRouter()
 router.register(r'entries', views.GameEntryViewSet, basename='entry')
 router.register(r'games', views.GameViewSet, basename='game')
 
+# Friends system
+router.register(r'friends/requests', FriendRequestViewSet, basename='friend-requests')
+router.register(r'friends', FriendsViewSet, basename='friends')
+
+# Nested: play sessions under entries
 nested = routers.NestedDefaultRouter(router, r'entries', lookup='entry')
 nested.register(r'sessions', views.PlaySessionViewSet, basename='entry-sessions')
 
@@ -32,6 +40,12 @@ urlpatterns = [
     # RAWG
     path('search/games/', views.search_games_external, name='search-games'),
     path('import/game/',  views.import_game,           name='import-game'),
+
+    # feed (me + my friends)
+    path('feed/', views.activity_feed, name='activity-feed'),
+
+    # user search/browse (used by Discover People)
+    path('users/', views.search_users, name='search-users'),
 
     # resources
     path('', include(router.urls)),

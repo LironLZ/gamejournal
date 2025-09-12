@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import api from "../api";
+import QuickAdd from "../components/QuickAdd";
 
 type Status = "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED";
 
@@ -12,7 +13,7 @@ type GameDetail = {
         last_entry_at: string | null;
         planning: number;
         playing: number;
-        played: number;        // <-- note: played, not paused
+        played: number; // <-- note: played, not paused
         dropped: number;
         completed: number;
     };
@@ -25,6 +26,14 @@ type GameDetail = {
         finished_at: string | null;
         updated_at: string;
     }>;
+};
+
+// Your own entry (private API shape)
+type MyEntry = {
+    id: number;
+    status: Status;
+    score: number | null;
+    game: { id: number; title?: string; release_year?: number | null };
 };
 
 const BADGE: Record<Status, string> = {
@@ -66,6 +75,11 @@ export default function GameDetails() {
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState("");
 
+    // --- my entry (for QuickAdd initial + label) ---
+    const authed = !!localStorage.getItem("access");
+    const [myEntry, setMyEntry] = useState<MyEntry | null>(null);
+
+    // Fetch public game details
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -75,7 +89,6 @@ export default function GameDetails() {
                 const resp = await api.get<GameDetail>(`/public/games/${encodeURIComponent(gameId)}/`);
                 if (!mounted) return;
 
-                // normalize defensively
                 const payload = resp.data;
                 payload.entries = Array.isArray(payload.entries) ? payload.entries : [];
                 setData(payload);
@@ -85,8 +98,35 @@ export default function GameDetails() {
                 if (mounted) setLoading(false);
             }
         })();
-        return () => { mounted = false; };
+        return () => {
+            mounted = false;
+        };
     }, [gameId]);
+
+    // Fetch *your* entry for this game (private)
+    useEffect(() => {
+        if (!authed || !gameId) {
+            setMyEntry(null);
+            return;
+        }
+        let alive = true;
+        (async () => {
+            try {
+                // /api/entries/ returns only the current user's entries (no filter server-side yet)
+                const { data } = await api.get<MyEntry[]>("/entries/", {
+                    params: { game_id: gameId }, // harmless now; useful if you add filter later
+                });
+                const arr = Array.isArray(data) ? data : (data as any)?.results || [];
+                const mine = arr.find((e) => e?.game?.id === Number(gameId)) || null;
+                if (alive) setMyEntry(mine);
+            } catch {
+                if (alive) setMyEntry(null);
+            }
+        })();
+        return () => {
+            alive = false;
+        };
+    }, [authed, gameId]);
 
     if (loading) {
         return (
@@ -137,7 +177,24 @@ export default function GameDetails() {
                     <h2 className="text-xl font-bold leading-tight">{game.title}</h2>
                     <div className="text-sm muted">{game.release_year ?? "—"}</div>
                 </div>
-                <Link to="/discover" className="btn-outline">← Back</Link>
+
+                <div className="flex items-center gap-2">
+                    {/* Add / update journal for this game */}
+                    <QuickAdd
+                        key={`${game.id}-${myEntry?.status ?? "none"}-${myEntry?.score ?? "null"}`} // remount when myEntry changes
+                        gameId={game.id}
+                        initial={myEntry ? { status: myEntry.status, score: myEntry.score } : undefined}
+                        onSaved={({ status, score }) => {
+                            // keep local state in sync (no refetch needed)
+                            setMyEntry((prev) =>
+                                prev ? { ...prev, status, score } : { id: 0, status, score, game: { id: game.id } }
+                            );
+                        }}
+                    />
+                    <Link to="/discover" className="btn-outline">
+                        ← Back
+                    </Link>
+                </div>
             </div>
 
             {/* Stats */}

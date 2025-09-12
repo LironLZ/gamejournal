@@ -1,7 +1,9 @@
 from rest_framework import serializers
-from .models import Platform, Game, GameEntry, PlaySession
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.db.models import Sum
+from .models import Platform, Game, GameEntry, PlaySession, Activity, Friendship, FriendRequest
+
+User = get_user_model()
 
 
 class PlatformSerializer(serializers.ModelSerializer):
@@ -26,7 +28,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ["username", "password"]
 
     def create(self, validated_data):
-        # ensure password is hashed
         user = User.objects.create_user(
             username=validated_data["username"],
             password=validated_data["password"]
@@ -35,10 +36,6 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class GameEntrySerializer(serializers.ModelSerializer):
-    """
-    Full entry serializer for the private app (owner views).
-    Keeps total_minutes for now so existing private screens continue to work.
-    """
     game = serializers.SerializerMethodField(read_only=True)
     game_id = serializers.PrimaryKeyRelatedField(queryset=Game.objects.all(), write_only=True, source='game')
     total_minutes = serializers.SerializerMethodField()
@@ -52,11 +49,9 @@ class GameEntrySerializer(serializers.ModelSerializer):
         ]
 
     def get_game(self, obj):
-        # minimal game representation
         return {"id": obj.game.id, "title": obj.game.title, "release_year": obj.game.release_year}
 
     def get_total_minutes(self, obj):
-        # still available for private owner views; not used in public profile or stats anymore
         return obj.sessions.aggregate(s=Sum('duration_min'))['s'] or 0
 
     def validate_score(self, value):
@@ -67,7 +62,6 @@ class GameEntrySerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        # handle partial updates by falling back to existing instance values
         started = attrs.get("started_at", getattr(self.instance, "started_at", None))
         finished = attrs.get("finished_at", getattr(self.instance, "finished_at", None))
         if started and finished and finished < started:
@@ -89,7 +83,6 @@ class GameWriteSerializer(serializers.ModelSerializer):
 
 
 # --- Public profile (slim) ----------------------------------------------------
-
 class PublicGameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Game
@@ -101,4 +94,57 @@ class PublicEntrySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GameEntry
-        fields = ("id", "status", "updated_at", "game")  # 👈 no minutes here
+        fields = ("id", "status", "updated_at", "game")
+
+
+# --- Activity -----------------------------------------------------------------
+class ActivitySerializer(serializers.ModelSerializer):
+    actor = serializers.CharField(source="actor.username", read_only=True)
+    game = PublicGameSerializer(read_only=True)
+
+    class Meta:
+        model = Activity
+        fields = ["id", "actor", "verb", "status", "score", "game", "created_at"]
+
+
+# --- Friends ------------------------------------------------------------------
+class FriendMiniSerializer(serializers.ModelSerializer):
+    avatar_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "avatar_url"]
+
+    def get_avatar_url(self, u):
+        req = self.context.get("request")
+        prof = getattr(u, "profile", None)
+        if prof and prof.avatar and req:
+            try:
+                return req.build_absolute_uri(prof.avatar.url)
+            except Exception:
+                return None
+        return None
+
+
+class FriendshipSerializer(serializers.ModelSerializer):
+    friend = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Friendship
+        fields = ["id", "friend", "created_at"]
+
+    def get_friend(self, obj):
+        me = self.context["request"].user
+        other = obj.user_b if obj.user_a_id == me.id else obj.user_a
+        return FriendMiniSerializer(other, context=self.context).data
+
+
+class FriendRequestSerializer(serializers.ModelSerializer):
+    from_user = FriendMiniSerializer(read_only=True)
+    to_user = FriendMiniSerializer(read_only=True)
+    to_user_id = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), source="to_user", write_only=True)
+
+    class Meta:
+        model = FriendRequest
+        fields = ["id", "from_user", "to_user", "to_user_id", "status", "created_at", "responded_at"]
+        read_only_fields = ["status", "created_at", "responded_at"]
