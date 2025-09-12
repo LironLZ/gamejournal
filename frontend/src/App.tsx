@@ -11,7 +11,8 @@ import LoginPage from "./pages/Login";
 import ChooseUsername from "./pages/ChooseUsername";
 import AvatarSettings from "./pages/AvatarSettings";
 import Feed from "./pages/Feed";
-import Friends from "./pages/Friends"; // <— single combined page now
+import Friends from "./pages/Friends";
+import Wishlist from "./pages/Wishlist"; // NEW
 
 const enableRegister = import.meta.env.VITE_ENABLE_REGISTER === "true";
 
@@ -97,8 +98,9 @@ export default function App() {
         <div className="max-w-[960px] mx-auto px-3 h-12 flex items-center gap-4">
           <Link className="nav-link" to="/discover">Discover</Link>
           <Link className="nav-link" to="/entries">Entries</Link>
+
           {authed && <Link className="nav-link" to="/feed">Feed</Link>}
-          {authed && <Link className="nav-link" to="/friends">Friends</Link>} {/* People removed */}
+          {authed && <Link className="nav-link" to="/friends">Friends</Link>}
 
           <div className="ml-auto flex items-center gap-3">
             <ThemeToggle />
@@ -145,10 +147,10 @@ export default function App() {
 
         <Route path="/setup/username" element={<ProtectedRoute><ChooseUsername /></ProtectedRoute>} />
         <Route path="/entries" element={<ProtectedRoute><Entries /></ProtectedRoute>} />
+        <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
         <Route path="/feed" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
         <Route path="/settings/profile" element={<ProtectedRoute><AvatarSettings /></ProtectedRoute>} />
 
-        {/* Friends: my list + requests + discover + optional friend's list */}
         <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
         <Route path="/friends/:username" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
 

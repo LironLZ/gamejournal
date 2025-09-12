@@ -49,7 +49,7 @@ class GameEntrySerializer(serializers.ModelSerializer):
         ]
 
     def get_game(self, obj):
-        return {"id": obj.game.id, "title": obj.game.title, "release_year": obj.game.release_year}
+        return {"id": obj.game.id, "title": obj.game.title, "release_year": obj.game.release_year, "cover_url": getattr(obj.game, "cover_url", None)}
 
     def get_total_minutes(self, obj):
         return obj.sessions.aggregate(s=Sum('duration_min'))['s'] or 0

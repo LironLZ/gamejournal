@@ -40,18 +40,17 @@ def create_profile_for_user(sender, instance, created, **kwargs):
 
 class GameEntry(models.Model):
     class Status(models.TextChoices):
-        PLANNING = "PLANNING", "Planning"
+        WISHLIST = "WISHLIST", "Wishlist"
         PLAYING = "PLAYING", "Playing"
         PLAYED = "PLAYED", "Played"
         DROPPED = "DROPPED", "Dropped"
-        COMPLETED = "COMPLETED", "Completed"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="entries"
     )
     game = models.ForeignKey("Game", on_delete=models.CASCADE, related_name="entries")
     status = models.CharField(
-        max_length=10, choices=Status.choices, default=Status.PLANNING
+        max_length=10, choices=Status.choices, default=Status.WISHLIST
     )
     score = models.PositiveSmallIntegerField(null=True, blank=True)
     started_at = models.DateField(null=True, blank=True)

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../api";
 
-type Status = "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED";
+type Status = "WISHLIST" | "PLAYING" | "PLAYED" | "DROPPED";
 
 type Entry = {
     id: number;
@@ -20,11 +20,10 @@ type Entry = {
 
 type Stats = {
     total: number;
-    planning: number;
+    wishlist: number;
     playing: number;
-    played: number;          // <- renamed
+    played: number;
     dropped: number;
-    completed: number;
 };
 
 type GameLite = {
@@ -36,15 +35,14 @@ type GameLite = {
     background_image?: string | null;
 };
 
-const STATUSES: Status[] = ["PLANNING", "PLAYING", "PLAYED", "DROPPED", "COMPLETED"];
+const STATUSES: Status[] = ["WISHLIST", "PLAYING", "PLAYED", "DROPPED"];
 
 /* Status badges */
 const BADGE: Record<Status, string> = {
     PLAYING: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
-    PLANNING: "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    WISHLIST: "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
     PLAYED: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
     DROPPED: "bg-crimson-100 text-crimson-700 border-crimson-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
-    COMPLETED: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
 };
 
 function StatusBadge({ s }: { s: Status }) {
@@ -58,11 +56,10 @@ function StatusBadge({ s }: { s: Status }) {
 /* Active tile tints per status */
 const TILE_ACTIVE: Record<Status | "ALL", string> = {
     ALL: "tile-active",
-    PLANNING: "tile-active border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/20",
+    WISHLIST: "tile-active border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/20",
     PLAYING: "tile-active border-sky-200 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20",
     PLAYED: "tile-active border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20",
     DROPPED: "tile-active border-crimson-200 bg-crimson-50 dark:border-rose-700 dark:bg-rose-900/20",
-    COMPLETED: "tile-active border-emerald-200 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20",
 };
 
 export default function Entries() {
@@ -76,7 +73,7 @@ export default function Entries() {
     const [results, setResults] = useState<GameLite[]>([]);
     const [showDrop, setShowDrop] = useState(false);
     const [selected, setSelected] = useState<GameLite | null>(null);
-    const [status, setStatus] = useState<Status>("PLAYING");
+    const [status, setStatus] = useState<Status>("WISHLIST");
     const [msg, setMsg] = useState("");
     const dropdownRef = useRef<HTMLDivElement | null>(null);
     const debounceRef = useRef<number | null>(null);
@@ -103,15 +100,12 @@ export default function Entries() {
     async function loadStats() {
         try {
             const { data } = await api.get("/stats/");
-            // Accept either key from API (for transition)
-            const played = (data.played ?? data.paused) as number;
             setStats({
                 total: data.total,
-                planning: data.planning,
+                wishlist: data.wishlist,
                 playing: data.playing,
-                played,
+                played: data.played,
                 dropped: data.dropped,
-                completed: data.completed,
             });
         } catch {
             setStats(null);
@@ -127,7 +121,9 @@ export default function Entries() {
         }
     }
 
-    useEffect(() => { refresh(); }, []);
+    useEffect(() => {
+        refresh();
+    }, []);
 
     useEffect(() => {
         if (debounceRef.current) window.clearTimeout(debounceRef.current);
@@ -144,7 +140,9 @@ export default function Entries() {
                 setResults([]);
             }
         }, 250);
-        return () => { if (debounceRef.current) window.clearTimeout(debounceRef.current); };
+        return () => {
+            if (debounceRef.current) window.clearTimeout(debounceRef.current);
+        };
     }, [query]);
 
     useEffect(() => {
@@ -182,7 +180,7 @@ export default function Entries() {
             await api.post("/entries/", { game_id: gameId, status });
             setSelected(null);
             setQuery("");
-            setStatus("PLAYING");
+            setStatus("WISHLIST");
             setMsg("Added!");
             refresh();
         } catch (err: any) {
@@ -223,7 +221,10 @@ export default function Entries() {
         let score: number | null = null;
         if (edit.score.trim() !== "") {
             const n = Number(edit.score);
-            if (!Number.isFinite(n)) { setMsg("Score must be a number between 0 and 10."); return; }
+            if (!Number.isFinite(n)) {
+                setMsg("Score must be a number between 0 and 10.");
+                return;
+            }
             score = Math.min(10, Math.max(0, Math.round(n)));
         }
 
@@ -279,11 +280,10 @@ export default function Entries() {
                     </button>
 
                     {([
-                        ["Planning", "PLANNING"],
+                        ["Wishlist", "WISHLIST"],
                         ["Playing", "PLAYING"],
                         ["Played", "PLAYED"],
                         ["Dropped", "DROPPED"],
-                        ["Completed", "COMPLETED"],
                     ] as const).map(([label, key]) => (
                         <button
                             key={key}
@@ -294,11 +294,10 @@ export default function Entries() {
                         >
                             <div className="stat-label">{label}</div>
                             <div className="stat-value">
-                                {key === "PLANNING" && stats.planning}
+                                {key === "WISHLIST" && stats.wishlist}
                                 {key === "PLAYING" && stats.playing}
                                 {key === "PLAYED" && stats.played}
                                 {key === "DROPPED" && stats.dropped}
-                                {key === "COMPLETED" && stats.completed}
                             </div>
                         </button>
                     ))}

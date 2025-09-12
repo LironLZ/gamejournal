@@ -30,9 +30,9 @@ from .serializers import (
     GameWriteSerializer,
     PublicEntrySerializer,
     ActivitySerializer,
-    FriendMiniSerializer,       # for public friends preview
-    FriendshipSerializer,       # for returning my friends
-    FriendRequestSerializer,    # for listing/creating requests (uses to_user_id)
+    FriendMiniSerializer,
+    FriendshipSerializer,
+    FriendRequestSerializer,
 )
 
 RAWG_API_KEY = os.environ.get("RAWG_API_KEY")
@@ -53,7 +53,6 @@ def _log_activity(user, entry, verb, *, status=None, score=None):
 
 # ---------- Helpers: friendships ----------
 def _friend_ids_of(user: User):
-    """Return list of user IDs who are friends with `user`."""
     a = Friendship.objects.filter(user_a=user).values_list("user_b_id", flat=True)
     b = Friendship.objects.filter(user_b=user).values_list("user_a_id", flat=True)
     return list(a) + list(b)
@@ -66,7 +65,6 @@ def _are_friends(a: User, b: User) -> bool:
 
 
 def _ensure_friendship(a: User, b: User):
-    """Create a Friendship if it doesn't exist (idempotent)."""
     if not _are_friends(a, b):
         Friendship.objects.create(user_a=a, user_b=b)
 
@@ -170,11 +168,10 @@ def my_stats(request):
     qs = GameEntry.objects.filter(user=request.user)
     data = {
         "total": qs.count(),
-        "planning": qs.filter(status=GameEntry.Status.PLANNING).count(),
+        "wishlisted": qs.filter(status=GameEntry.Status.WISHLIST).count(),  # unified key
         "playing": qs.filter(status=GameEntry.Status.PLAYING).count(),
         "played": qs.filter(status=GameEntry.Status.PLAYED).count(),
         "dropped": qs.filter(status=GameEntry.Status.DROPPED).count(),
-        "completed": qs.filter(status=GameEntry.Status.COMPLETED).count(),
     }
     return Response(data)
 
@@ -197,11 +194,10 @@ def public_profile(request, username: str):
 
     stats = qs.aggregate(
         total=Count("id"),
-        planning=Count("id", filter=Q(status=GameEntry.Status.PLANNING)),
+        wishlisted=Count("id", filter=Q(status=GameEntry.Status.WISHLIST)),
         playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
         played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),
         dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
-        completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
     )
 
     # Avatar
@@ -388,6 +384,9 @@ class GameEntryViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(game_id=int(gid))
             except (TypeError, ValueError):
                 pass
+        status_q = (self.request.query_params.get("status") or "").upper().strip()
+        if status_q in {s for s, _ in GameEntry.Status.choices}:
+            qs = qs.filter(status=status_q)
         return qs
 
     def perform_create(self, serializer):
@@ -425,7 +424,6 @@ class PlaySessionViewSet(viewsets.ModelViewSet):
         entry_id = self.kwargs["entry_pk"]
         entry = get_object_or_404(GameEntry, id=entry_id, user=self.request.user)
         serializer.save(entry=entry)
-        # Optional: log play sessions later with Activity.Verb.SESSION
 
 
 class GameViewSet(viewsets.ModelViewSet):
@@ -562,37 +560,6 @@ class FriendsViewSet(viewsets.ViewSet):
         return Response(status=204)
 
 
-# ---------- Feed (me + my friends) ----------
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def activity_feed(request):
-    """
-    GET /api/feed/?limit=50&offset=0
-    Activities from me + my friends.
-    """
-    try:
-        limit = max(1, min(int(request.query_params.get("limit", 50)), 200))
-    except Exception:
-        limit = 50
-    try:
-        offset = max(0, int(request.query_params.get("offset", 0)))
-    except Exception:
-        offset = 0
-
-    friend_user_ids = _friend_ids_of(request.user)
-    user_ids = friend_user_ids + [request.user.id]
-
-    qs = (
-        Activity.objects
-        .filter(actor_id__in=user_ids)
-        .select_related("game", "actor", "actor__profile")  # include actor profile for avatar
-        .order_by("-created_at")
-    )[offset: offset + limit]
-
-    data = ActivitySerializer(qs, many=True, context={"request": request}).data
-    return Response(data)
-
-
 # --- Public game details (read-only) -----------------------------------------
 @api_view(["GET"])
 @permission_classes([AllowAny])
@@ -615,11 +582,10 @@ def public_game_detail(request, game_id: int):
         ratings_count=Count("score"),
         avg_score=Avg("score"),
         last_entry_at=Max("updated_at"),
-        planning=Count("id", filter=Q(status=GameEntry.Status.PLANNING)),
+        wishlisted=Count("id", filter=Q(status=GameEntry.Status.WISHLIST)),  # unified key
         playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
         played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),
         dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
-        completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
     )
 
     def build_avatar(u):
@@ -654,3 +620,33 @@ def public_game_detail(request, game_id: int):
         "stats": stats,
         "entries": entries,
     })
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def activity_feed(request):
+    """
+    GET /api/feed/?limit=50&offset=0
+    Activities from me + my friends.
+    """
+    try:
+        limit = max(1, min(int(request.query_params.get("limit", 50)), 200))
+    except Exception:
+        limit = 50
+    try:
+        offset = max(0, int(request.query_params.get("offset", 0)))
+    except Exception:
+        offset = 0
+
+    friend_user_ids = _friend_ids_of(request.user)
+    user_ids = friend_user_ids + [request.user.id]
+
+    qs = (
+        Activity.objects
+        .filter(actor_id__in=user_ids)
+        .select_related("game", "actor", "actor__profile")  # include actor profile for avatar
+        .order_by("-created_at")
+    )[offset: offset + limit]
+
+    data = ActivitySerializer(qs, many=True, context={"request": request}).data
+    return Response(data)

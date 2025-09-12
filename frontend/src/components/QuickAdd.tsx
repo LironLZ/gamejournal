@@ -1,16 +1,14 @@
-// frontend/src/components/QuickAdd.tsx
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 
-export type Status = "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED";
+export type Status = "WISHLIST" | "PLAYING" | "PLAYED" | "DROPPED";
 
 const STATUS_LABEL: Record<Status, string> = {
-    PLANNING: "Planning",
+    WISHLIST: "Wishlist",
     PLAYING: "Playing",
     PLAYED: "Played",
     DROPPED: "Dropped",
-    COMPLETED: "Completed",
 };
 
 type EntryListItem = {
@@ -22,7 +20,7 @@ type EntryListItem = {
 
 type Props = {
     gameId: number;
-    initial?: { status?: Status | null; score?: number | null }; // optional prefill (GameDetails)
+    initial?: { status?: Status | null; score?: number | null };
     compact?: boolean;
     onSaved?: (entry: { id?: number; status: Status; score: number | null }) => void;
 };
@@ -33,16 +31,14 @@ export default function QuickAdd({ gameId, initial, compact, onSaved }: Props) {
 
     const [open, setOpen] = useState(false);
 
-    // existing entry (if any)
     const [existing, setExisting] = useState<Pick<EntryListItem, "id" | "status" | "score"> | null>(
         initial?.status !== undefined || initial?.score !== undefined
-            ? { id: 0, status: (initial?.status as Status) || "PLANNING", score: initial?.score ?? null }
+            ? { id: 0, status: (initial?.status as Status) || "WISHLIST", score: initial?.score ?? null }
             : null
     );
-    const loadedRef = useRef<boolean>(!!existing); // avoid re-fetch
+    const loadedRef = useRef<boolean>(!!existing);
 
-    // form fields
-    const [status, setStatus] = useState<Status | "">((initial?.status as Status) || "");
+    const [status, setStatus] = useState<Status | "">((initial?.status as Status) || "WISHLIST");
     const [score, setScore] = useState<string>(
         initial?.score === null || initial?.score === undefined ? "" : String(initial?.score)
     );
@@ -52,18 +48,16 @@ export default function QuickAdd({ gameId, initial, compact, onSaved }: Props) {
 
     const uid = useId();
 
-    // keep local form in sync if parent passes new initial
     useEffect(() => {
         if (initial && (initial.status !== existing?.status || initial.score !== existing?.score)) {
-            setExisting({ id: 0, status: (initial.status as Status) || "PLANNING", score: initial.score ?? null });
-            setStatus((initial.status as Status) || "");
+            setExisting({ id: 0, status: (initial.status as Status) || "WISHLIST", score: initial.score ?? null });
+            setStatus((initial.status as Status) || "WISHLIST");
             setScore(initial.score == null ? "" : String(initial.score));
             loadedRef.current = true;
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initial?.status, initial?.score]);
 
-    // close on Escape
     useEffect(() => {
         function onKey(e: KeyboardEvent) {
             if (e.key === "Escape") setOpen(false);
@@ -81,7 +75,7 @@ export default function QuickAdd({ gameId, initial, compact, onSaved }: Props) {
         if (raw === "" || raw == null) return null;
         const n = Math.round(Number(raw));
         if (Number.isNaN(n)) return null;
-        return Math.max(0, Math.min(10, n)); // serializer enforces 0..10
+        return Math.max(0, Math.min(10, n));
     }
 
     async function postCreate(s: Status, sc: number | null) {
@@ -89,7 +83,7 @@ export default function QuickAdd({ gameId, initial, compact, onSaved }: Props) {
     }
     async function listMine(): Promise<EntryListItem[]> {
         const { data } = await api.get<EntryListItem[]>("/entries/", {
-            params: { game_id: gameId }, // harmless today; future-proof if filter is added
+            params: { game_id: gameId },
         });
         return Array.isArray(data) ? data : (data as any)?.results || [];
     }
@@ -118,7 +112,7 @@ export default function QuickAdd({ gameId, initial, compact, onSaved }: Props) {
                 setScore(mine.score == null ? "" : String(mine.score));
             }
         } catch {
-            // ignore — we’ll just show empty fields
+            /* noop */
         } finally {
             loadedRef.current = true;
         }
@@ -137,15 +131,12 @@ export default function QuickAdd({ gameId, initial, compact, onSaved }: Props) {
         const nScore = normalizeScore(score);
 
         try {
-            // If we already know the entry ID, patch directly
             if (existing?.id) {
                 await patchUpdate(existing.id, status as Status, nScore);
             } else {
-                // Try create first
                 await postCreate(status as Status, nScore);
             }
         } catch (err: any) {
-            // Creation failed? Try to discover & patch (unique_together case)
             try {
                 const mine = await findMineByGame();
                 if (!mine?.id) throw err;
@@ -192,10 +183,9 @@ export default function QuickAdd({ gameId, initial, compact, onSaved }: Props) {
                             value={status}
                             onChange={(e) => setStatus(e.target.value as Status | "")}
                         >
-                            <option value="">Pick status…</option>
-                            {Object.keys(STATUS_LABEL).map((k) => (
+                            {(Object.keys(STATUS_LABEL) as Status[]).map((k) => (
                                 <option key={k} value={k}>
-                                    {STATUS_LABEL[k as Status]}
+                                    {STATUS_LABEL[k]}
                                 </option>
                             ))}
                         </select>

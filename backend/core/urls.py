@@ -1,4 +1,3 @@
-# core/urls.py
 from django.conf import settings
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -54,11 +53,9 @@ urlpatterns = [
     # public
     path('users/<str:username>/', views.public_profile, name='public-profile'),
     path('public/games/', views_public.discover_games, name='discover-games'),
-    # 🔧 route the details to the new view that returns avatar_url
     path('public/games/<int:game_id>/', views.public_game_detail, name='public-game-details'),
 ]
 
-# Dev-only password endpoints (optional)
 if getattr(settings, "ALLOW_PASSWORD_LOGIN", False):
     urlpatterns += [
         path('auth/register/', views.register, name='register'),

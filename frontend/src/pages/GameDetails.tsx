@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import api from "../api";
 import QuickAdd from "../components/QuickAdd";
 
-type Status = "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED";
+// Local status type matches backend (supports both old PLANNING and new WISHLIST for safety)
+type Status = "WISHLIST" | "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED";
 
 type GameDetail = {
     game: { id: number; title: string; release_year?: number | null; cover_url?: string | null };
@@ -11,11 +12,14 @@ type GameDetail = {
         ratings_count: number | null;
         avg_score: number | null;
         last_entry_at: string | null;
-        planning: number;
+        // backend may send either (new) wishlisted or (legacy) planning; we accept both
+        wishlisted?: number;
+        planning?: number;
         playing: number;
         played: number;
         dropped: number;
-        completed: number;
+        // may still exist in old data; we won’t render it
+        completed?: number;
     };
     entries: Array<{
         username: string;
@@ -36,16 +40,31 @@ type MyEntry = {
     game: { id: number; title?: string; release_year?: number | null };
 };
 
-const BADGE: Record<Status, string> = {
-    PLAYING: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
-    PLANNING: "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
-    PLAYED: "bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-700",
-    DROPPED: "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
-    COMPLETED: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
+const BADGE: Record<Exclude<Status, "COMPLETED">, string> = {
+    // Use the same style for WISHLIST and legacy PLANNING
+    WISHLIST:
+        "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    PLANNING:
+        "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    PLAYING:
+        "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
+    PLAYED:
+        "bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-700",
+    DROPPED:
+        "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
 };
 
 function StatusBadge({ s }: { s: Status }) {
-    return <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>{s}</span>;
+    // Normalize legacy PLANNING to display as Wishlisted
+    const label = s === "PLANNING" ? "WISHLIST" : s;
+    const keyForStyle = (s === "PLANNING" ? "WISHLIST" : s) as keyof typeof BADGE;
+    // COMPLETED isn’t shown in recent entries anymore, but guard just in case
+    const cls = BADGE[keyForStyle] ?? "bg-zinc-100 text-zinc-700 border-zinc-200";
+    return (
+        <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${cls}`}>
+            {label}
+        </span>
+    );
 }
 
 function fmtAvg(n: number | null | undefined) {
@@ -90,11 +109,16 @@ export default function GameDetails() {
                 if (mounted) setLoading(false);
             }
         })();
-        return () => { mounted = false; };
+        return () => {
+            mounted = false;
+        };
     }, [gameId]);
 
     useEffect(() => {
-        if (!authed || !gameId) { setMyEntry(null); return; }
+        if (!authed || !gameId) {
+            setMyEntry(null);
+            return;
+        }
         let alive = true;
         (async () => {
             try {
@@ -106,7 +130,9 @@ export default function GameDetails() {
                 if (alive) setMyEntry(null);
             }
         })();
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, [authed, gameId]);
 
     if (loading) {
@@ -132,6 +158,8 @@ export default function GameDetails() {
     if (!data) return <div className="container-page">No data.</div>;
 
     const { game, stats, entries } = data;
+    // Prefer new backend key; fall back to legacy planning
+    const wishlistedCount = (stats as any).wishlisted ?? (stats as any).planning ?? 0;
 
     return (
         <div className="container-page">
@@ -154,10 +182,14 @@ export default function GameDetails() {
                     <QuickAdd
                         key={`${game.id}-${myEntry?.status ?? "none"}-${myEntry?.score ?? "null"}`}
                         gameId={game.id}
-                        initial={myEntry ? { status: myEntry.status, score: myEntry.score } : undefined}
+                        // QuickAdd's exported Status currently doesn't include WISHLIST;
+                        // cast to keep TS happy while backend uses WISHLIST.
+                        initial={myEntry ? ({ status: myEntry.status as any, score: myEntry.score } as any) : undefined}
                         onSaved={({ status, score }) => {
                             setMyEntry((prev) =>
-                                prev ? { ...prev, status, score } : { id: 0, status, score, game: { id: game.id } }
+                                prev
+                                    ? ({ ...prev, status: status as any, score } as MyEntry)
+                                    : ({ id: 0, status: status as any, score, game: { id: game.id } } as MyEntry)
                             );
                         }}
                     />
@@ -167,14 +199,39 @@ export default function GameDetails() {
 
             {/* Stats */}
             <div className="grid md:grid-cols-3 gap-3 my-4">
-                <div className="card p-3"><div className="stat-label">Average score</div><div className="stat-value">{fmtAvg(stats.avg_score)}</div></div>
-                <div className="card p-3"><div className="stat-label">Ratings</div><div className="stat-value">{stats.ratings_count ?? 0}</div></div>
-                <div className="card p-3"><div className="stat-label">Last activity</div><div className="stat-value">{fmtDate(stats.last_entry_at)}</div></div>
-                <div className="card p-3"><div className="stat-label mb-1">Planning</div><div className="stat-value">{stats.planning ?? 0}</div></div>
-                <div className="card p-3"><div className="stat-label mb-1">Playing</div><div className="stat-value">{stats.playing ?? 0}</div></div>
-                <div className="card p-3"><div className="stat-label mb-1">Played</div><div className="stat-value">{stats.played ?? 0}</div></div>
-                <div className="card p-3"><div className="stat-label mb-1">Dropped</div><div className="stat-value">{stats.dropped ?? 0}</div></div>
-                <div className="card p-3"><div className="stat-label mb-1">Completed</div><div className="stat-value">{stats.completed ?? 0}</div></div>
+                <div className="card p-3">
+                    <div className="stat-label">Average score</div>
+                    <div className="stat-value">{fmtAvg(stats.avg_score)}</div>
+                </div>
+                <div className="card p-3">
+                    <div className="stat-label">Ratings</div>
+                    <div className="stat-value">{stats.ratings_count ?? 0}</div>
+                </div>
+                <div className="card p-3">
+                    <div className="stat-label">Last activity</div>
+                    <div className="stat-value">{fmtDate(stats.last_entry_at)}</div>
+                </div>
+
+                {/* Renamed tile */}
+                <div className="card p-3">
+                    <div className="stat-label mb-1">Wishlisted</div>
+                    <div className="stat-value">{wishlistedCount}</div>
+                </div>
+
+                <div className="card p-3">
+                    <div className="stat-label mb-1">Playing</div>
+                    <div className="stat-value">{stats.playing ?? 0}</div>
+                </div>
+                <div className="card p-3">
+                    <div className="stat-label mb-1">Played</div>
+                    <div className="stat-value">{stats.played ?? 0}</div>
+                </div>
+                <div className="card p-3">
+                    <div className="stat-label mb-1">Dropped</div>
+                    <div className="stat-value">{stats.dropped ?? 0}</div>
+                </div>
+
+                {/* "Completed" removed per design (keep just Played) */}
             </div>
 
             {/* Recent entries */}
