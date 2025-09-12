@@ -6,7 +6,7 @@ import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Avg, Max
 from django.utils import timezone
 
 from rest_framework import status, viewsets, permissions, mixins
@@ -602,3 +602,62 @@ def activity_feed(request):
 
     data = ActivitySerializer(qs, many=True, context={"request": request}).data
     return Response(data)
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_game_detail(request, game_id: int):
+    """
+    GET /api/public/games/<game_id>/
+    Public stats + recent community entries for a game (with avatar_url).
+    """
+    game = get_object_or_404(Game, pk=game_id)
+
+    qs = (
+        GameEntry.objects
+        .filter(game=game)
+        .select_related("user", "user__profile")   # pull avatar efficiently
+        .order_by("-updated_at")
+    )
+
+    stats = {
+        "ratings_count": qs.exclude(score__isnull=True).count() or 0,
+        "avg_score": qs.aggregate(a=Avg("score"))["a"],
+        "last_entry_at": qs.aggregate(m=Max("updated_at"))["m"],
+        "planning": qs.filter(status=GameEntry.Status.PLANNING).count(),
+        "playing": qs.filter(status=GameEntry.Status.PLAYING).count(),
+        "played": qs.filter(status=GameEntry.Status.PLAYED).count(),
+        "dropped": qs.filter(status=GameEntry.Status.DROPPED).count(),
+        "completed": qs.filter(status=GameEntry.Status.COMPLETED).count(),
+    }
+
+    entries = []
+    for e in qs[:50]:
+        avatar_url = None
+        prof = getattr(e.user, "profile", None)
+        if prof and prof.avatar:
+            try:
+                avatar_url = request.build_absolute_uri(prof.avatar.url)
+            except Exception:
+                avatar_url = None
+
+        entries.append({
+            "username": e.user.username,
+            "avatar_url": avatar_url,     # <-- sent to client
+            "status": e.status,
+            "score": e.score,
+            "notes": e.notes or "",
+            "started_at": e.started_at,
+            "finished_at": e.finished_at,
+            "updated_at": e.updated_at,
+        })
+
+    return Response({
+        "game": {
+            "id": game.id,
+            "title": game.title,
+            "release_year": game.release_year,
+            "cover_url": game.cover_url,
+        },
+        "stats": stats,
+        "entries": entries,
+    })

@@ -19,7 +19,7 @@ type GameDetail = {
     };
     entries: Array<{
         username: string;
-        avatar_url?: string | null;    // optional: if backend provides it we use it
+        avatar_url?: string | null;            // <-- NEW
         status: Status;
         score: number | null;
         notes: string;
@@ -60,8 +60,8 @@ function fmtDate(s: string | null | undefined) {
     return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
 }
 
-function avatarUrl(username: string, url?: string | null) {
-    return url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(username)}`;
+function identicon(seed: string) {
+    return `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(seed)}`;
 }
 
 export default function GameDetails() {
@@ -81,7 +81,6 @@ export default function GameDetails() {
                 setErr("");
                 const resp = await api.get<GameDetail>(`/public/games/${encodeURIComponent(gameId)}/`);
                 if (!mounted) return;
-
                 const payload = resp.data;
                 payload.entries = Array.isArray(payload.entries) ? payload.entries : [];
                 setData(payload);
@@ -91,22 +90,15 @@ export default function GameDetails() {
                 if (mounted) setLoading(false);
             }
         })();
-        return () => {
-            mounted = false;
-        };
+        return () => { mounted = false; };
     }, [gameId]);
 
     useEffect(() => {
-        if (!authed || !gameId) {
-            setMyEntry(null);
-            return;
-        }
+        if (!authed || !gameId) { setMyEntry(null); return; }
         let alive = true;
         (async () => {
             try {
-                const { data } = await api.get<MyEntry[]>("/entries/", {
-                    params: { game_id: gameId },
-                });
+                const { data } = await api.get<MyEntry[]>("/entries/", { params: { game_id: gameId } });
                 const arr = Array.isArray(data) ? data : (data as any)?.results || [];
                 const mine = arr.find((e) => e?.game?.id === Number(gameId)) || null;
                 if (alive) setMyEntry(mine);
@@ -114,9 +106,7 @@ export default function GameDetails() {
                 if (alive) setMyEntry(null);
             }
         })();
-        return () => {
-            alive = false;
-        };
+        return () => { alive = false; };
     }, [authed, gameId]);
 
     if (loading) {
@@ -138,17 +128,8 @@ export default function GameDetails() {
         );
     }
 
-    if (err) {
-        return (
-            <div className="container-page">
-                <div className="text-crimson-600">{err}</div>
-            </div>
-        );
-    }
-
-    if (!data) {
-        return <div className="container-page">No data.</div>;
-    }
+    if (err) return <div className="container-page"><div className="text-crimson-600">{err}</div></div>;
+    if (!data) return <div className="container-page">No data.</div>;
 
     const { game, stats, entries } = data;
 
@@ -175,9 +156,7 @@ export default function GameDetails() {
                         gameId={game.id}
                         initial={myEntry ? { status: myEntry.status, score: myEntry.score } : undefined}
                         onSaved={({ status, score }) => {
-                            setMyEntry((prev) =>
-                                prev ? { ...prev, status, score } : { id: 0, status, score, game: { id: game.id } }
-                            );
+                            setMyEntry((prev) => prev ? { ...prev, status, score } : { id: 0, status, score, game: { id: game.id } });
                         }}
                     />
                     <Link to="/discover" className="btn-outline">← Back</Link>
@@ -186,42 +165,17 @@ export default function GameDetails() {
 
             {/* Stats */}
             <div className="grid md:grid-cols-3 gap-3 my-4">
-                <div className="card p-3">
-                    <div className="stat-label">Average score</div>
-                    <div className="stat-value">{fmtAvg(stats.avg_score)}</div>
-                </div>
-                <div className="card p-3">
-                    <div className="stat-label">Ratings</div>
-                    <div className="stat-value">{stats.ratings_count ?? 0}</div>
-                </div>
-                <div className="card p-3">
-                    <div className="stat-label">Last activity</div>
-                    <div className="stat-value">{fmtDate(stats.last_entry_at)}</div>
-                </div>
-
-                <div className="card p-3">
-                    <div className="stat-label mb-1">Planning</div>
-                    <div className="stat-value">{stats.planning ?? 0}</div>
-                </div>
-                <div className="card p-3">
-                    <div className="stat-label mb-1">Playing</div>
-                    <div className="stat-value">{stats.playing ?? 0}</div>
-                </div>
-                <div className="card p-3">
-                    <div className="stat-label mb-1">Played</div>
-                    <div className="stat-value">{stats.played ?? 0}</div>
-                </div>
-                <div className="card p-3">
-                    <div className="stat-label mb-1">Dropped</div>
-                    <div className="stat-value">{stats.dropped ?? 0}</div>
-                </div>
-                <div className="card p-3">
-                    <div className="stat-label mb-1">Completed</div>
-                    <div className="stat-value">{stats.completed ?? 0}</div>
-                </div>
+                <div className="card p-3"><div className="stat-label">Average score</div><div className="stat-value">{fmtAvg(stats.avg_score)}</div></div>
+                <div className="card p-3"><div className="stat-label">Ratings</div><div className="stat-value">{stats.ratings_count ?? 0}</div></div>
+                <div className="card p-3"><div className="stat-label">Last activity</div><div className="stat-value">{fmtDate(stats.last_entry_at)}</div></div>
+                <div className="card p-3"><div className="stat-label mb-1">Planning</div><div className="stat-value">{stats.planning ?? 0}</div></div>
+                <div className="card p-3"><div className="stat-label mb-1">Playing</div><div className="stat-value">{stats.playing ?? 0}</div></div>
+                <div className="card p-3"><div className="stat-label mb-1">Played</div><div className="stat-value">{stats.played ?? 0}</div></div>
+                <div className="card p-3"><div className="stat-label mb-1">Dropped</div><div className="stat-value">{stats.dropped ?? 0}</div></div>
+                <div className="card p-3"><div className="stat-label mb-1">Completed</div><div className="stat-value">{stats.completed ?? 0}</div></div>
             </div>
 
-            {/* Recent entries (usernames clickable + avatar shown) */}
+            {/* Recent entries */}
             <div className="card p-4">
                 <h3 className="text-lg font-semibold mb-2">Recent community entries</h3>
                 {entries.length === 0 ? (
@@ -232,14 +186,12 @@ export default function GameDetails() {
                             <li key={i} className="border-b border-zinc-200 dark:border-zinc-700 last:border-0 py-2">
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700 shrink-0">
-                                            <img
-                                                src={avatarUrl(en.username, en.avatar_url)}
-                                                alt={`${en.username} avatar`}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        </div>
-                                        <Link className="link font-medium truncate" to={`/u/${encodeURIComponent(en.username)}`}>
+                                        <img
+                                            src={en.avatar_url || identicon(en.username)}
+                                            alt={`${en.username} avatar`}
+                                            className="w-6 h-6 rounded-full border dark:border-zinc-700 shrink-0"
+                                        />
+                                        <Link to={`/u/${encodeURIComponent(en.username)}`} className="font-medium truncate">
                                             {en.username}
                                         </Link>
                                         <StatusBadge s={en.status} />
