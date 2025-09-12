@@ -241,14 +241,43 @@ def public_profile(request, username: str):
 @permission_classes([IsAuthenticated])
 def search_users(request):
     """
-    GET /api/users/?q=li -> [{id, username, avatar_url}, ...] (max 30)
+    GET /api/users/?q=li  -> [{id, username, avatar_url}, ...]
+    Privacy-minded:
+      - Requires q length >= 2 (no browse-all).
+      - Excludes staff/superusers, yourself, existing friends,
+        and users with pending requests (either direction).
     """
     q = (request.query_params.get("q") or "").strip()
-    qs = User.objects.all().select_related("profile").order_by("username")
-    if q:
-        qs = qs.filter(username__icontains=q)
+    if len(q) < 2:
+        return Response([])
+
+    qs = (
+        User.objects
+        .filter(is_active=True, is_staff=False, is_superuser=False)
+        .exclude(id=request.user.id)
+        .select_related("profile")
+    )
+
+    # Exclude existing friends
+    friend_ids = _friend_ids_of(request.user)
+    if friend_ids:
+        qs = qs.exclude(id__in=friend_ids)
+
+    # Exclude pending requests in either direction
+    pending_to = FriendRequest.objects.filter(
+        from_user=request.user, status=FriendRequest.Status.PENDING
+    ).values_list("to_user_id", flat=True)
+    pending_from = FriendRequest.objects.filter(
+        to_user=request.user, status=FriendRequest.Status.PENDING
+    ).values_list("from_user_id", flat=True)
+    qs = qs.exclude(id__in=list(pending_to)).exclude(id__in=list(pending_from))
+
+    # Search
+    qs = qs.filter(username__icontains=q).order_by("username")[:30]
+
+    # Shape response
     data = []
-    for u in qs[:30]:
+    for u in qs:
         avatar_url = None
         prof = getattr(u, "profile", None)
         if prof and prof.avatar:

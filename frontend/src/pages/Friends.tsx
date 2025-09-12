@@ -36,6 +36,10 @@ export default function Friends() {
 
     // --- Discover search ---
     async function searchPeople() {
+        if (q.trim().length < 2) {
+            setPeople([]);
+            return;
+        }
         setBusy(true);
         try {
             const res = await api.get(`/users/`, { params: { q } });
@@ -46,7 +50,7 @@ export default function Friends() {
             setBusy(false);
         }
     }
-    useEffect(() => { searchPeople(); }, []); // initial list
+    // NOTE: no initial auto-search; privacy: require user to type first.
 
     // --- Actions ---
     async function accept(id: number) { await api.post(`/friends/requests/${id}/accept/`); loadAll(); }
@@ -70,18 +74,23 @@ export default function Friends() {
             {/* Discover people (now inside Friends) */}
             <section className="card p-3">
                 <div className="font-medium mb-2">Discover people</div>
-                <div className="flex gap-2 mb-3">
+                <div className="flex gap-2 mb-2">
                     <input
                         className="input flex-1"
                         placeholder="Search username…"
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && searchPeople()}
+                        onKeyDown={(e) => e.key === "Enter" && q.trim().length >= 2 && searchPeople()}
                     />
-                    <button className="btn" disabled={busy} onClick={searchPeople}>
+                    <button className="btn" disabled={busy || q.trim().length < 2} onClick={searchPeople}>
                         Search
                     </button>
                 </div>
+                {q.trim().length < 2 && (
+                    <div className="text-xs text-gray-500 mb-2">
+                        Type at least 2 characters.
+                    </div>
+                )}
                 {toast && <div className="text-sm mb-2">{toast}</div>}
                 <div className="space-y-2">
                     {people.map((u) => (
@@ -93,7 +102,9 @@ export default function Friends() {
                             </button>
                         </div>
                     ))}
-                    {people.length === 0 && <div className="text-sm text-gray-500">No users found.</div>}
+                    {people.length === 0 && q.trim().length >= 2 && (
+                        <div className="text-sm text-gray-500">No users found.</div>
+                    )}
                 </div>
             </section>
 
