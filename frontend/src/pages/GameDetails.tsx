@@ -19,7 +19,7 @@ type GameDetail = {
     };
     entries: Array<{
         username: string;
-        avatar_url?: string | null;   // <-- NEW
+        avatar_url?: string | null;
         status: Status;
         score: number | null;
         notes: string;

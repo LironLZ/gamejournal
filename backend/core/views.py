@@ -371,13 +371,6 @@ class IsOwner(permissions.BasePermission):
 class GameEntryViewSet(viewsets.ModelViewSet):
     """
     CRUD for the current user's game entries.
-
-    - GET /api/entries/                -> list my entries
-      optional filter: ?game_id=123
-    - POST /api/entries/               -> create (requires game_id)
-    - PATCH /api/entries/<id>/         -> partial update
-
-    Also logs Activity rows when status/score changes.
     """
     serializer_class = GameEntrySerializer
     permission_classes = [permissions.IsAuthenticated, IsOwner]
@@ -450,11 +443,7 @@ class GameViewSet(viewsets.ModelViewSet):
 # ---------- Friends: requests + list ----------
 class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """
-    /api/friends/requests/               GET   -> {"incoming": [...], "outgoing": [...]}
-    /api/friends/requests/               POST  -> create request { "to_user_id": <int> }
-    /api/friends/requests/{id}/accept/   POST
-    /api/friends/requests/{id}/decline/  POST
-    /api/friends/requests/{id}/cancel/   POST
+    /api/friends/requests/  (list/create + actions)
     """
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = FriendRequestSerializer
@@ -602,6 +591,7 @@ def activity_feed(request):
 
     data = ActivitySerializer(qs, many=True, context={"request": request}).data
     return Response(data)
+
 
 # --- Public game details (read-only) -----------------------------------------
 @api_view(["GET"])

@@ -54,7 +54,8 @@ urlpatterns = [
     # public
     path('users/<str:username>/', views.public_profile, name='public-profile'),
     path('public/games/', views_public.discover_games, name='discover-games'),
-    path('public/games/<int:game_id>/', views_public.game_details, name='public-game-details'),
+    # 🔧 route the details to the new view that returns avatar_url
+    path('public/games/<int:game_id>/', views.public_game_detail, name='public-game-details'),
 ]
 
 # Dev-only password endpoints (optional)
