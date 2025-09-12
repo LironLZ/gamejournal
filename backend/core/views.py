@@ -596,9 +596,9 @@ def activity_feed(request):
     qs = (
         Activity.objects
         .filter(actor_id__in=user_ids)
-        .select_related("game", "actor")
+        .select_related("game", "actor", "actor__profile")  # include actor profile for avatar
         .order_by("-created_at")
     )[offset: offset + limit]
 
-    data = ActivitySerializer(qs, many=True).data
+    data = ActivitySerializer(qs, many=True, context={"request": request}).data
     return Response(data)

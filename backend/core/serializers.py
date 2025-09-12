@@ -100,11 +100,22 @@ class PublicEntrySerializer(serializers.ModelSerializer):
 # --- Activity -----------------------------------------------------------------
 class ActivitySerializer(serializers.ModelSerializer):
     actor = serializers.CharField(source="actor.username", read_only=True)
+    actor_avatar_url = serializers.SerializerMethodField()
     game = PublicGameSerializer(read_only=True)
 
     class Meta:
         model = Activity
-        fields = ["id", "actor", "verb", "status", "score", "game", "created_at"]
+        fields = ["id", "actor", "actor_avatar_url", "verb", "status", "score", "game", "created_at"]
+
+    def get_actor_avatar_url(self, obj):
+        req = self.context.get("request")
+        prof = getattr(obj.actor, "profile", None)
+        if prof and prof.avatar and req:
+            try:
+                return req.build_absolute_uri(prof.avatar.url)
+            except Exception:
+                return None
+        return None
 
 
 # --- Friends ------------------------------------------------------------------
