@@ -5,6 +5,7 @@ import api from "../api";
 type Activity = {
     id: number;
     actor: string; // username
+    actor_avatar_url?: string | null;
     verb: "RATED" | "STATUS" | "SESSION";
     status?: "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED" | null;
     score?: number | null;
@@ -26,7 +27,8 @@ function timeAgo(iso: string) {
     return d.toLocaleDateString();
 }
 
-function avatarUrl(username: string) {
+function avatarUrl(username: string, actorAvatar?: string | null) {
+    if (actorAvatar) return actorAvatar;
     return `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(username)}`;
 }
 
@@ -57,7 +59,7 @@ function ActivityRow({ a }: { a: Activity }) {
             <div className="flex items-start gap-3">
                 <Link to={`/u/${encodeURIComponent(a.actor)}`} className="shrink-0">
                     <img
-                        src={avatarUrl(a.actor)}
+                        src={avatarUrl(a.actor, a.actor_avatar_url)}
                         alt={`${a.actor} avatar`}
                         className="w-8 h-8 rounded-full border dark:border-zinc-700"
                     />

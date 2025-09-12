@@ -13,12 +13,13 @@ type GameDetail = {
         last_entry_at: string | null;
         planning: number;
         playing: number;
-        played: number; // <-- note: played, not paused
+        played: number;
         dropped: number;
         completed: number;
     };
     entries: Array<{
         username: string;
+        avatar_url?: string | null;    // optional: if backend provides it we use it
         status: Status;
         score: number | null;
         notes: string;
@@ -28,7 +29,6 @@ type GameDetail = {
     }>;
 };
 
-// Your own entry (private API shape)
 type MyEntry = {
     id: number;
     status: Status;
@@ -37,24 +37,15 @@ type MyEntry = {
 };
 
 const BADGE: Record<Status, string> = {
-    PLAYING:
-        "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
-    PLANNING:
-        "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
-    PLAYED:
-        "bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-700",
-    DROPPED:
-        "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
-    COMPLETED:
-        "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
+    PLAYING: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
+    PLANNING: "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    PLAYED: "bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-700",
+    DROPPED: "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
+    COMPLETED: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
 };
 
 function StatusBadge({ s }: { s: Status }) {
-    return (
-        <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>
-            {s}
-        </span>
-    );
+    return <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>{s}</span>;
 }
 
 function fmtAvg(n: number | null | undefined) {
@@ -69,17 +60,19 @@ function fmtDate(s: string | null | undefined) {
     return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
 }
 
+function avatarUrl(username: string, url?: string | null) {
+    return url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(username)}`;
+}
+
 export default function GameDetails() {
     const { gameId = "" } = useParams<{ gameId: string }>();
     const [data, setData] = useState<GameDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState("");
 
-    // --- my entry (for QuickAdd initial + label) ---
     const authed = !!localStorage.getItem("access");
     const [myEntry, setMyEntry] = useState<MyEntry | null>(null);
 
-    // Fetch public game details
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -103,7 +96,6 @@ export default function GameDetails() {
         };
     }, [gameId]);
 
-    // Fetch *your* entry for this game (private)
     useEffect(() => {
         if (!authed || !gameId) {
             setMyEntry(null);
@@ -112,9 +104,8 @@ export default function GameDetails() {
         let alive = true;
         (async () => {
             try {
-                // /api/entries/ returns only the current user's entries (no filter server-side yet)
                 const { data } = await api.get<MyEntry[]>("/entries/", {
-                    params: { game_id: gameId }, // harmless now; useful if you add filter later
+                    params: { game_id: gameId },
                 });
                 const arr = Array.isArray(data) ? data : (data as any)?.results || [];
                 const mine = arr.find((e) => e?.game?.id === Number(gameId)) || null;
@@ -179,21 +170,17 @@ export default function GameDetails() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {/* Add / update journal for this game */}
                     <QuickAdd
-                        key={`${game.id}-${myEntry?.status ?? "none"}-${myEntry?.score ?? "null"}`} // remount when myEntry changes
+                        key={`${game.id}-${myEntry?.status ?? "none"}-${myEntry?.score ?? "null"}`}
                         gameId={game.id}
                         initial={myEntry ? { status: myEntry.status, score: myEntry.score } : undefined}
                         onSaved={({ status, score }) => {
-                            // keep local state in sync (no refetch needed)
                             setMyEntry((prev) =>
                                 prev ? { ...prev, status, score } : { id: 0, status, score, game: { id: game.id } }
                             );
                         }}
                     />
-                    <Link to="/discover" className="btn-outline">
-                        ← Back
-                    </Link>
+                    <Link to="/discover" className="btn-outline">← Back</Link>
                 </div>
             </div>
 
@@ -234,7 +221,7 @@ export default function GameDetails() {
                 </div>
             </div>
 
-            {/* Recent entries */}
+            {/* Recent entries (usernames clickable + avatar shown) */}
             <div className="card p-4">
                 <h3 className="text-lg font-semibold mb-2">Recent community entries</h3>
                 {entries.length === 0 ? (
@@ -245,7 +232,16 @@ export default function GameDetails() {
                             <li key={i} className="border-b border-zinc-200 dark:border-zinc-700 last:border-0 py-2">
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className="font-medium truncate">{en.username}</div>
+                                        <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700 shrink-0">
+                                            <img
+                                                src={avatarUrl(en.username, en.avatar_url)}
+                                                alt={`${en.username} avatar`}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <Link className="link font-medium truncate" to={`/u/${encodeURIComponent(en.username)}`}>
+                                            {en.username}
+                                        </Link>
                                         <StatusBadge s={en.status} />
                                         <div className="text-xs muted">{fmtDate(en.updated_at)}</div>
                                     </div>

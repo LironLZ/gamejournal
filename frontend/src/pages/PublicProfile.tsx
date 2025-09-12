@@ -4,6 +4,8 @@ import api from "../api";
 
 type Status = "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED";
 
+type Mini = { id: number; username: string; avatar_url?: string | null };
+
 type Entry = {
     id: number;
     status: Status;
@@ -19,6 +21,7 @@ type ProfilePayload =
     | {
         user: { id: number; username: string; joined: string; avatar_url?: string | null };
         stats: { total: number; planning: number; playing: number; played?: number; paused?: number; dropped: number; completed: number };
+        friends: { count: number; preview: Mini[] };
         entries: Entry[];
     }
     | { detail: string };
@@ -51,22 +54,6 @@ export default function PublicProfile() {
     const [err, setErr] = useState("");
     const [filter, setFilter] = useState<"ALL" | Status>("ALL");
 
-    const authed = !!localStorage.getItem("access");
-    const [me, setMe] = useState<string | null>(null);
-    const [followId, setFollowId] = useState<number | null>(null);
-
-    useEffect(() => {
-        if (!authed) { setMe(null); return; }
-        let alive = true;
-        (async () => {
-            try {
-                const { data } = await api.get<{ user: string }>("/auth/whoami/");
-                if (alive) setMe(data?.user || null);
-            } catch { if (alive) setMe(null); }
-        })();
-        return () => { alive = false; };
-    }, [authed]);
-
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -87,20 +74,6 @@ export default function PublicProfile() {
         return () => { mounted = false; };
     }, [username]);
 
-    useEffect(() => {
-        if (!authed || !data || "detail" in data) { setFollowId(null); return; }
-        if (!me || data.user.username.toLowerCase() === me.toLowerCase()) { setFollowId(null); return; }
-        let alive = true;
-        (async () => {
-            try {
-                const { data: rows } = await api.get<any[]>("/follows/", { params: { target: data.user.username } });
-                const first = Array.isArray(rows) ? rows[0] : null;
-                if (alive) setFollowId(first?.id ?? null);
-            } catch { if (alive) setFollowId(null); }
-        })();
-        return () => { alive = false; };
-    }, [authed, me, data && "user" in data ? (data as any).user?.username : null]);
-
     if (loading) {
         return (
             <div className="container-page">
@@ -109,7 +82,6 @@ export default function PublicProfile() {
                         <div className="h-6 w-48 rounded bg-zinc-200 dark:bg-zinc-700 mb-2" />
                         <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
                     </div>
-                    <div className="h-5 w-20 rounded bg-zinc-200 dark:bg-zinc-700" />
                 </div>
                 <div className="flex gap-4 flex-wrap my-4">
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -140,16 +112,16 @@ export default function PublicProfile() {
     if (!data) return <div className="container-page p-6">No data.</div>;
     if ("detail" in data) return <div className="container-page p-6 text-crimson-600">{(data as any).detail}</div>;
 
-    const { user, stats, entries } = data;
+    const { user, stats, entries, friends } = data;
     const joinedPretty = new Date(user.joined).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
     const playedCount = (stats as any).played ?? (stats as any).paused ?? 0;
     const visible = filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
 
     const avatar = user.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(user.username)}`;
-    const viewingMyOwn = !!(me && user.username.toLowerCase() === me.toLowerCase());
 
     return (
         <div className="container-page">
+            {/* Header (no follow/unfollow or back button) */}
             <div className="flex items-start justify-between my-2 mb-4">
                 <div className="flex items-center gap-4">
                     <div className="w-40 h-40 rounded-xl overflow-hidden border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800">
@@ -160,34 +132,9 @@ export default function PublicProfile() {
                         <div className="text-sm muted mt-1">Joined <b>{joinedPretty}</b></div>
                     </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                    {!viewingMyOwn && authed && (
-                        followId ? (
-                            <button
-                                className="btn-outline"
-                                onClick={async () => { try { await api.delete(`/follows/${followId}/`); setFollowId(null); } catch { } }}
-                            >
-                                Unfollow
-                            </button>
-                        ) : (
-                            <button
-                                className="btn-primary"
-                                onClick={async () => {
-                                    try {
-                                        const { data: row } = await api.post("/follows/", { following: user.id });
-                                        setFollowId(row.id);
-                                    } catch { }
-                                }}
-                            >
-                                Follow
-                            </button>
-                        )
-                    )}
-                    <Link to="/entries" className="nav-link">Back to app</Link>
-                </div>
             </div>
 
+            {/* Stats tiles */}
             <div className="flex gap-4 flex-wrap my-4">
                 <button type="button" onClick={() => setFilter("ALL")} className={`tile ${filter === "ALL" ? TILE_ACTIVE.ALL : ""}`}>
                     <div className="stat-label">Total</div><div className="stat-value">{stats.total}</div>
@@ -211,6 +158,31 @@ export default function PublicProfile() {
                 ))}
             </div>
 
+            {/* Friends preview (restored) */}
+            <div className="card p-3 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="font-medium">Friends {friends ? `(${friends.count})` : ""}</div>
+                    {friends && friends.count > 0 && (
+                        <Link className="link text-sm" to={`/friends/${encodeURIComponent(user.username)}`}>See all</Link>
+                    )}
+                </div>
+                {!friends || friends.count === 0 ? (
+                    <div className="text-sm muted">No friends to show.</div>
+                ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {friends.preview.map((f) => (
+                            <Link key={f.id} className="flex items-center gap-3" to={`/u/${encodeURIComponent(f.username)}`}>
+                                <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-700">
+                                    {f.avatar_url ? <img src={f.avatar_url} className="w-full h-full object-cover" /> : null}
+                                </div>
+                                <span className="link">{f.username}</span>
+                            </Link>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Entries */}
             {visible.length === 0 ? (
                 <div className="card p-6 mt-4 text-center">
                     <h3 className="text-lg font-semibold mb-1">No entries in this view</h3>
