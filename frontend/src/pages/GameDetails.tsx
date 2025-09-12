@@ -19,7 +19,7 @@ type GameDetail = {
     };
     entries: Array<{
         username: string;
-        avatar_url?: string | null;            // <-- NEW
+        avatar_url?: string | null;   // <-- NEW
         status: Status;
         score: number | null;
         notes: string;
@@ -60,8 +60,8 @@ function fmtDate(s: string | null | undefined) {
     return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
 }
 
-function identicon(seed: string) {
-    return `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(seed)}`;
+function avatarOrFallback(username: string, avatar?: string | null) {
+    return avatar || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(username)}`;
 }
 
 export default function GameDetails() {
@@ -156,7 +156,9 @@ export default function GameDetails() {
                         gameId={game.id}
                         initial={myEntry ? { status: myEntry.status, score: myEntry.score } : undefined}
                         onSaved={({ status, score }) => {
-                            setMyEntry((prev) => prev ? { ...prev, status, score } : { id: 0, status, score, game: { id: game.id } });
+                            setMyEntry((prev) =>
+                                prev ? { ...prev, status, score } : { id: 0, status, score, game: { id: game.id } }
+                            );
                         }}
                     />
                     <Link to="/discover" className="btn-outline">← Back</Link>
@@ -186,12 +188,14 @@ export default function GameDetails() {
                             <li key={i} className="border-b border-zinc-200 dark:border-zinc-700 last:border-0 py-2">
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <img
-                                            src={en.avatar_url || identicon(en.username)}
-                                            alt={`${en.username} avatar`}
-                                            className="w-6 h-6 rounded-full border dark:border-zinc-700 shrink-0"
-                                        />
-                                        <Link to={`/u/${encodeURIComponent(en.username)}`} className="font-medium truncate">
+                                        <Link to={`/u/${encodeURIComponent(en.username)}`} className="shrink-0">
+                                            <img
+                                                src={avatarOrFallback(en.username, en.avatar_url)}
+                                                alt={`${en.username} avatar`}
+                                                className="w-6 h-6 rounded-full border dark:border-zinc-700"
+                                            />
+                                        </Link>
+                                        <Link to={`/u/${encodeURIComponent(en.username)}`} className="font-medium truncate link">
                                             {en.username}
                                         </Link>
                                         <StatusBadge s={en.status} />

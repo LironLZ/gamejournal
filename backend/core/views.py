@@ -603,52 +603,55 @@ def activity_feed(request):
     data = ActivitySerializer(qs, many=True, context={"request": request}).data
     return Response(data)
 
+# --- Public game details (read-only) -----------------------------------------
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def public_game_detail(request, game_id: int):
     """
     GET /api/public/games/<game_id>/
-    Public stats + recent community entries for a game (with avatar_url).
+    Public stats + recent community entries for a game.
+    Each entry includes username and avatar_url (if uploaded).
     """
     game = get_object_or_404(Game, pk=game_id)
 
     qs = (
         GameEntry.objects
         .filter(game=game)
-        .select_related("user", "user__profile")   # pull avatar efficiently
+        .select_related("user", "user__profile")  # pull avatar efficiently
         .order_by("-updated_at")
     )
 
-    stats = {
-        "ratings_count": qs.exclude(score__isnull=True).count() or 0,
-        "avg_score": qs.aggregate(a=Avg("score"))["a"],
-        "last_entry_at": qs.aggregate(m=Max("updated_at"))["m"],
-        "planning": qs.filter(status=GameEntry.Status.PLANNING).count(),
-        "playing": qs.filter(status=GameEntry.Status.PLAYING).count(),
-        "played": qs.filter(status=GameEntry.Status.PLAYED).count(),
-        "dropped": qs.filter(status=GameEntry.Status.DROPPED).count(),
-        "completed": qs.filter(status=GameEntry.Status.COMPLETED).count(),
-    }
+    stats = qs.aggregate(
+        ratings_count=Count("score"),
+        avg_score=Avg("score"),
+        last_entry_at=Max("updated_at"),
+        planning=Count("id", filter=Q(status=GameEntry.Status.PLANNING)),
+        playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
+        played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),
+        dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
+        completed=Count("id", filter=Q(status=GameEntry.Status.COMPLETED)),
+    )
 
-    entries = []
-    for e in qs[:50]:
-        avatar_url = None
-        prof = getattr(e.user, "profile", None)
+    def build_avatar(u):
+        prof = getattr(u, "profile", None)
         if prof and prof.avatar:
             try:
-                avatar_url = request.build_absolute_uri(prof.avatar.url)
+                return request.build_absolute_uri(prof.avatar.url)
             except Exception:
-                avatar_url = None
+                return None
+        return None
 
+    entries = []
+    for e in qs[:30]:
         entries.append({
             "username": e.user.username,
-            "avatar_url": avatar_url,     # <-- sent to client
+            "avatar_url": build_avatar(e.user),
             "status": e.status,
             "score": e.score,
             "notes": e.notes or "",
-            "started_at": e.started_at,
-            "finished_at": e.finished_at,
-            "updated_at": e.updated_at,
+            "started_at": e.started_at.isoformat() if e.started_at else None,
+            "finished_at": e.finished_at.isoformat() if e.finished_at else None,
+            "updated_at": e.updated_at.isoformat(),
         })
 
     return Response({
@@ -656,7 +659,7 @@ def public_game_detail(request, game_id: int):
             "id": game.id,
             "title": game.title,
             "release_year": game.release_year,
-            "cover_url": game.cover_url,
+            "cover_url": getattr(game, "cover_url", None),
         },
         "stats": stats,
         "entries": entries,
