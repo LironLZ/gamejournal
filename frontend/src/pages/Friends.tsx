@@ -8,12 +8,12 @@ type RequestItem = { id: number; from_user: Mini; to_user: Mini; created_at: str
 type RequestsPayload = { incoming: RequestItem[]; outgoing: RequestItem[] };
 
 export default function Friends() {
-    const { username } = useParams(); // optional: viewing someone else's friends
+    const { username } = useParams();
     const [mine, setMine] = useState<Friendship[]>([]);
     const [reqs, setReqs] = useState<RequestsPayload | null>(null);
     const [others, setOthers] = useState<Mini[]>([]);
 
-    // --- Discover people (moved from DiscoverPeople.tsx) ---
+    // Discover people
     const [q, setQ] = useState("");
     const [people, setPeople] = useState<Mini[]>([]);
     const [busy, setBusy] = useState(false);
@@ -34,12 +34,7 @@ export default function Friends() {
     useEffect(() => { loadAll(); }, []);
     useEffect(() => { if (username) loadOthersFriends(username); }, [username]);
 
-    // --- Discover search ---
     async function searchPeople() {
-        if (q.trim().length < 2) {
-            setPeople([]);
-            return;
-        }
         setBusy(true);
         try {
             const res = await api.get(`/users/`, { params: { q } });
@@ -50,9 +45,20 @@ export default function Friends() {
             setBusy(false);
         }
     }
-    // NOTE: no initial auto-search; privacy: require user to type first.
+    useEffect(() => { searchPeople(); }, []); // initial attempt (won't return until q >= 2 server-side)
 
-    // --- Actions ---
+    // Helpers to determine button state
+    function isFriend(userId: number) {
+        return mine.some((f) => f.friend.id === userId);
+    }
+    function isOutgoingPending(userId: number) {
+        return !!reqs?.outgoing.some((r) => r.to_user.id === userId);
+    }
+    function isIncomingPending(userId: number) {
+        return !!reqs?.incoming.some((r) => r.from_user.id === userId);
+    }
+
+    // Actions
     async function accept(id: number) { await api.post(`/friends/requests/${id}/accept/`); loadAll(); }
     async function decline(id: number) { await api.post(`/friends/requests/${id}/decline/`); loadAll(); }
     async function cancel(id: number) { await api.post(`/friends/requests/${id}/cancel/`); loadAll(); }
@@ -71,40 +77,48 @@ export default function Friends() {
         <div className="container mx-auto max-w-3xl mt-6 space-y-6">
             <h1 className="text-2xl font-semibold">Friends</h1>
 
-            {/* Discover people (now inside Friends) */}
+            {/* Discover people */}
             <section className="card p-3">
                 <div className="font-medium mb-2">Discover people</div>
-                <div className="flex gap-2 mb-2">
+                <div className="flex gap-2 mb-3">
                     <input
                         className="input flex-1"
                         placeholder="Search username…"
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && q.trim().length >= 2 && searchPeople()}
+                        onKeyDown={(e) => e.key === "Enter" && searchPeople()}
                     />
-                    <button className="btn" disabled={busy || q.trim().length < 2} onClick={searchPeople}>
-                        Search
-                    </button>
+                    <button className="btn" disabled={busy} onClick={searchPeople}>Search</button>
                 </div>
-                {q.trim().length < 2 && (
-                    <div className="text-xs text-gray-500 mb-2">
-                        Type at least 2 characters.
-                    </div>
-                )}
                 {toast && <div className="text-sm mb-2">{toast}</div>}
                 <div className="space-y-2">
-                    {people.map((u) => (
-                        <div key={u.id} className="card p-2 flex items-center gap-3">
-                            <Avatar url={u.avatar_url} />
-                            <Link className="link" to={`/u/${u.username}`}>{u.username}</Link>
-                            <button className="btn btn-xs ml-auto" onClick={() => addFriend(u.id)}>
-                                Add friend
-                            </button>
-                        </div>
-                    ))}
-                    {people.length === 0 && q.trim().length >= 2 && (
-                        <div className="text-sm text-gray-500">No users found.</div>
-                    )}
+                    {people.map((u) => {
+                        const friend = isFriend(u.id);
+                        const outgoing = isOutgoingPending(u.id);
+                        const incoming = isIncomingPending(u.id);
+
+                        let label = "Add friend";
+                        let disabled = false;
+
+                        if (friend) { label = "Friends"; disabled = true; }
+                        else if (outgoing) { label = "Requested"; disabled = true; }
+                        else if (incoming) { label = "Pending"; disabled = true; }
+
+                        return (
+                            <div key={u.id} className="card p-2 flex items-center gap-3">
+                                <Avatar url={u.avatar_url} />
+                                <Link className="link" to={`/u/${u.username}`}>{u.username}</Link>
+                                <button
+                                    className={`btn btn-xs ml-auto ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                                    disabled={disabled}
+                                    onClick={() => !disabled && addFriend(u.id)}
+                                >
+                                    {label}
+                                </button>
+                            </div>
+                        );
+                    })}
+                    {people.length === 0 && <div className="text-sm text-gray-500">No users found.</div>}
                 </div>
             </section>
 
@@ -119,9 +133,7 @@ export default function Friends() {
                             <div key={f.id} className="flex items-center gap-3">
                                 <Avatar url={f.friend.avatar_url} />
                                 <Link className="link" to={`/u/${f.friend.username}`}>{f.friend.username}</Link>
-                                <button className="btn btn-xs ml-auto" onClick={() => unfriend(f.friend.username)}>
-                                    Unfriend
-                                </button>
+                                <button className="btn btn-xs ml-auto" onClick={() => unfriend(f.friend.username)}>Unfriend</button>
                             </div>
                         ))}
                     </div>
@@ -168,7 +180,7 @@ export default function Friends() {
                 )}
             </section>
 
-            {/* Someone else's friends (when routed as /friends/:username) */}
+            {/* Someone else's friends */}
             {username ? (
                 <section className="card p-3">
                     <div className="font-medium mb-2">{username}'s friends ({others.length})</div>

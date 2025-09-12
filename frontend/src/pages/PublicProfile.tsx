@@ -15,47 +15,24 @@ type Entry = {
     };
 };
 
-type ProfilePayload = {
-    user: {
-        id: number;
-        username: string;
-        joined: string;
-        avatar_url?: string | null;
-    };
-    stats: {
-        total: number;
-        planning: number;
-        playing: number;
-        played: number;
-        dropped: number;
-        completed: number;
-    };
-    friends: {
-        count: number;
-        preview: Array<{ username: string; avatar_url?: string | null }>;
-    };
-    entries: Entry[];
-};
+type ProfilePayload =
+    | {
+        user: { id: number; username: string; joined: string; avatar_url?: string | null };
+        stats: { total: number; planning: number; playing: number; played?: number; paused?: number; dropped: number; completed: number };
+        entries: Entry[];
+    }
+    | { detail: string };
 
 const BADGE: Record<Status, string> = {
-    PLAYING:
-        "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
-    PLANNING:
-        "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
-    PLAYED:
-        "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
-    DROPPED:
-        "bg-crimson-100 text-crimson-700 border-crimson-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
-    COMPLETED:
-        "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
+    PLAYING: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
+    PLANNING: "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    PLAYED: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
+    DROPPED: "bg-crimson-100 text-crimson-700 border-crimson-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
+    COMPLETED: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
 };
 
 function StatusBadge({ s }: { s: Status }) {
-    return (
-        <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>
-            {s}
-        </span>
-    );
+    return <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>{s}</span>;
 }
 
 const TILE_ACTIVE: Record<Status | "ALL", string> = {
@@ -73,92 +50,106 @@ export default function PublicProfile() {
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState("");
     const [filter, setFilter] = useState<"ALL" | Status>("ALL");
+
     const authed = !!localStorage.getItem("access");
     const [me, setMe] = useState<string | null>(null);
-    const [msg, setMsg] = useState("");
+    const [followId, setFollowId] = useState<number | null>(null);
 
-    const viewingMyOwn =
-        !!(me && data?.user && data.user.username.toLowerCase() === me.toLowerCase());
-
-    // whoami to know if it's my own profile
     useEffect(() => {
-        if (!authed) {
-            setMe(null);
-            return;
-        }
+        if (!authed) { setMe(null); return; }
         let alive = true;
         (async () => {
             try {
                 const { data } = await api.get<{ user: string }>("/auth/whoami/");
-                if (!alive) return;
-                setMe(data?.user || null);
-            } catch {
-                if (!alive) return;
-                setMe(null);
-            }
+                if (alive) setMe(data?.user || null);
+            } catch { if (alive) setMe(null); }
         })();
-        return () => {
-            alive = false;
-        };
+        return () => { alive = false; };
     }, [authed]);
 
-    // load profile
     useEffect(() => {
-        let alive = true;
+        let mounted = true;
         (async () => {
             try {
                 setLoading(true);
                 setErr("");
-                const resp = await api.get<ProfilePayload>(
-                    `/users/${encodeURIComponent(username)}/`
-                );
-                if (!alive) return;
+                const resp = await api.get<ProfilePayload>(`/users/${encodeURIComponent(username)}/`);
+                if (!mounted) return;
                 setData(resp.data);
             } catch (e: any) {
-                if (!alive) return;
+                if (!mounted) return;
                 const msg = e?.response?.data?.detail || e?.message || "Failed to load profile.";
                 setErr(msg);
             } finally {
-                if (!alive) return;
-                setLoading(false);
+                if (mounted) setLoading(false);
             }
         })();
-        return () => {
-            alive = false;
-        };
+        return () => { mounted = false; };
     }, [username]);
 
-    async function sendFriendRequest() {
-        if (!data) return;
-        try {
-            await api.post(`/friends/requests/`, { to_user_id: data.user.id });
-            setMsg("Friend request sent 👍");
-        } catch (e: any) {
-            setMsg(e?.response?.data?.detail || "Could not send request");
-        }
+    useEffect(() => {
+        if (!authed || !data || "detail" in data) { setFollowId(null); return; }
+        if (!me || data.user.username.toLowerCase() === me.toLowerCase()) { setFollowId(null); return; }
+        let alive = true;
+        (async () => {
+            try {
+                const { data: rows } = await api.get<any[]>("/follows/", { params: { target: data.user.username } });
+                const first = Array.isArray(rows) ? rows[0] : null;
+                if (alive) setFollowId(first?.id ?? null);
+            } catch { if (alive) setFollowId(null); }
+        })();
+        return () => { alive = false; };
+    }, [authed, me, data && "user" in data ? (data as any).user?.username : null]);
+
+    if (loading) {
+        return (
+            <div className="container-page">
+                <div className="flex justify-between items-baseline my-2 mb-4">
+                    <div>
+                        <div className="h-6 w-48 rounded bg-zinc-200 dark:bg-zinc-700 mb-2" />
+                        <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </div>
+                    <div className="h-5 w-20 rounded bg-zinc-200 dark:bg-zinc-700" />
+                </div>
+                <div className="flex gap-4 flex-wrap my-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="tile">
+                            <div className="h-3 w-16 rounded bg-zinc-200 dark:bg-zinc-700 mb-2" />
+                            <div className="h-5 w-10 rounded bg-zinc-200 dark:bg-zinc-700" />
+                        </div>
+                    ))}
+                </div>
+                <ul className="list-none p-0 m-0">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <li key={i} className="card p-3 mb-3">
+                            <div className="flex gap-3">
+                                <div className="w-[72px] h-[72px] rounded-lg bg-zinc-200 dark:bg-zinc-700" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="h-4 w-44 rounded bg-zinc-200 dark:bg-zinc-700 mb-2" />
+                                    <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+                                </div>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        );
     }
 
-    if (loading) return <div className="container-page p-6">Loading…</div>;
     if (err) return <div className="container-page p-6 text-crimson-600">Error: {err}</div>;
     if (!data) return <div className="container-page p-6">No data.</div>;
+    if ("detail" in data) return <div className="container-page p-6 text-crimson-600">{(data as any).detail}</div>;
 
-    const { user, stats, friends, entries } = data;
-    const joinedPretty = new Date(user.joined).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
-    });
-    const visible =
-        filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
-    const avatar =
-        user.avatar_url ||
-        `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(
-            user.username
-        )}`;
+    const { user, stats, entries } = data;
+    const joinedPretty = new Date(user.joined).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+    const playedCount = (stats as any).played ?? (stats as any).paused ?? 0;
+    const visible = filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
+
+    const avatar = user.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(user.username)}`;
+    const viewingMyOwn = !!(me && user.username.toLowerCase() === me.toLowerCase());
 
     return (
         <div className="container-page">
-            {/* Header */}
             <div className="flex items-start justify-between my-2 mb-4">
                 <div className="flex items-center gap-4">
                     <div className="w-40 h-40 rounded-xl overflow-hidden border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800">
@@ -172,27 +163,39 @@ export default function PublicProfile() {
 
                 <div className="flex items-center gap-2">
                     {!viewingMyOwn && authed && (
-                        <button className="btn-primary" onClick={sendFriendRequest}>Add friend</button>
+                        followId ? (
+                            <button
+                                className="btn-outline"
+                                onClick={async () => { try { await api.delete(`/follows/${followId}/`); setFollowId(null); } catch { } }}
+                            >
+                                Unfollow
+                            </button>
+                        ) : (
+                            <button
+                                className="btn-primary"
+                                onClick={async () => {
+                                    try {
+                                        const { data: row } = await api.post("/follows/", { following: user.id });
+                                        setFollowId(row.id);
+                                    } catch { }
+                                }}
+                            >
+                                Follow
+                            </button>
+                        )
                     )}
                     <Link to="/entries" className="nav-link">Back to app</Link>
                 </div>
             </div>
 
-            {/* Stats */}
             <div className="flex gap-4 flex-wrap my-4">
-                <button
-                    type="button"
-                    onClick={() => setFilter("ALL")}
-                    className={`tile ${filter === "ALL" ? TILE_ACTIVE.ALL : ""}`}
-                >
-                    <div className="stat-label">Total</div>
-                    <div className="stat-value">{stats.total}</div>
+                <button type="button" onClick={() => setFilter("ALL")} className={`tile ${filter === "ALL" ? TILE_ACTIVE.ALL : ""}`}>
+                    <div className="stat-label">Total</div><div className="stat-value">{stats.total}</div>
                 </button>
-
                 {([
                     ["Planning", "PLANNING", stats.planning],
                     ["Playing", "PLAYING", stats.playing],
-                    ["Played", "PLAYED", stats.played],
+                    ["Played", "PLAYED", playedCount],
                     ["Dropped", "DROPPED", stats.dropped],
                     ["Completed", "COMPLETED", stats.completed],
                 ] as const).map(([label, key, val]) => (
@@ -203,38 +206,11 @@ export default function PublicProfile() {
                         className={`tile ${filter === key ? TILE_ACTIVE[key as Status] : ""}`}
                         title={`Show ${label.toLowerCase()} entries`}
                     >
-                        <div className="stat-label">{label}</div>
-                        <div className="stat-value">{val}</div>
+                        <div className="stat-label">{label}</div><div className="stat-value">{val}</div>
                     </button>
                 ))}
             </div>
 
-            {/* Friends preview */}
-            <div className="card p-3 mb-4">
-                <div className="flex justify-between items-center">
-                    <div className="font-semibold">Friends</div>
-                    <Link to={`/friends/${user.username}`} className="link">
-                        View all ({friends.count})
-                    </Link>
-                </div>
-                {friends.preview.length === 0 ? (
-                    <div className="text-sm text-gray-500 mt-2">No friends yet.</div>
-                ) : (
-                    <div className="grid grid-cols-6 md:grid-cols-8 gap-3 mt-3">
-                        {friends.preview.map((f) => (
-                            <Link key={f.username} to={`/u/${f.username}`} className="flex flex-col items-center">
-                                <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden">
-                                    {f.avatar_url ? <img src={f.avatar_url} alt="" /> : null}
-                                </div>
-                                <div className="text-xs mt-1 truncate w-16 text-center">{f.username}</div>
-                            </Link>
-                        ))}
-                    </div>
-                )}
-                {msg ? <div className="mt-2 text-sm">{msg}</div> : null}
-            </div>
-
-            {/* Entries */}
             {visible.length === 0 ? (
                 <div className="card p-6 mt-4 text-center">
                     <h3 className="text-lg font-semibold mb-1">No entries in this view</h3>
@@ -244,28 +220,25 @@ export default function PublicProfile() {
                 <ul className="list-none p-0 m-0">
                     {visible.map((en) => (
                         <li key={en.id} className="card p-3 mb-3">
-                            <div className="flex gap-3">
+                            <Link to={`/game/${en.game.id}`} className="flex gap-3 items-start group">
                                 {en.game.cover_url ? (
                                     <img
                                         src={en.game.cover_url}
                                         alt={en.game.title}
                                         className="w-[72px] h-[72px] object-cover rounded-lg border border-gray-200 dark:border-zinc-700"
-                                        onError={(e) =>
-                                            ((e.currentTarget as HTMLImageElement).style.display = "none")
-                                        }
+                                        onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
                                     />
                                 ) : null}
                                 <div className="flex-1 min-w-0">
-                                    <div className="font-bold text-base leading-tight">
-                                        {en.game.title}{" "}
-                                        {en.game.release_year ? `(${en.game.release_year})` : ""}
+                                    <div className="font-bold text-base leading-tight group-hover:underline">
+                                        {en.game.title} {en.game.release_year ? `(${en.game.release_year})` : ""}
                                     </div>
                                     <div className="flex items-center gap-2 mt-1 flex-wrap text-sm">
                                         <span className="muted text-xs">Status:</span>
                                         <StatusBadge s={en.status} />
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
                         </li>
                     ))}
                 </ul>

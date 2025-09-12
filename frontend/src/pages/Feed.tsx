@@ -5,7 +5,6 @@ import api from "../api";
 type Activity = {
     id: number;
     actor: string; // username
-    actor_avatar_url?: string | null;
     verb: "RATED" | "STATUS" | "SESSION";
     status?: "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED" | null;
     score?: number | null;
@@ -13,7 +12,6 @@ type Activity = {
     created_at: string;
 };
 
-// simple relative time formatter
 function timeAgo(iso: string) {
     const d = new Date(iso);
     const s = Math.floor((Date.now() - d.getTime()) / 1000);
@@ -28,8 +26,7 @@ function timeAgo(iso: string) {
     return d.toLocaleDateString();
 }
 
-function avatarUrl(username: string, actorAvatar?: string | null) {
-    if (actorAvatar) return actorAvatar;
+function avatarUrl(username: string) {
     return `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(username)}`;
 }
 
@@ -58,11 +55,13 @@ function ActivityRow({ a }: { a: Activity }) {
     return (
         <li className="border-b border-zinc-200 dark:border-zinc-700 last:border-0 py-2">
             <div className="flex items-start gap-3">
-                <img
-                    src={avatarUrl(a.actor, a.actor_avatar_url)}
-                    alt={`${a.actor} avatar`}
-                    className="w-8 h-8 rounded-full border dark:border-zinc-700 shrink-0"
-                />
+                <Link to={`/u/${encodeURIComponent(a.actor)}`} className="shrink-0">
+                    <img
+                        src={avatarUrl(a.actor)}
+                        alt={`${a.actor} avatar`}
+                        className="w-8 h-8 rounded-full border dark:border-zinc-700"
+                    />
+                </Link>
                 <div className="flex-1 min-w-0">
                     <div className="truncate">
                         <Link className="font-semibold link" to={`/u/${encodeURIComponent(a.actor)}`}>{a.actor}</Link>{" "}
@@ -82,7 +81,6 @@ export default function Feed() {
     const [offset, setOffset] = useState(0);
     const limit = 30;
 
-    // sentinel for infinite scroll
     const loadMoreRef = useRef<HTMLDivElement | null>(null);
     const [hasMore, setHasMore] = useState(true);
 
@@ -106,7 +104,6 @@ export default function Feed() {
         return () => { alive = false; };
     }, [offset]);
 
-    // intersection observer to auto-load more
     useEffect(() => {
         if (!hasMore || loading) return;
         const el = loadMoreRef.current;
@@ -114,9 +111,7 @@ export default function Feed() {
 
         const io = new IntersectionObserver((entries) => {
             const first = entries[0];
-            if (first?.isIntersecting) {
-                setOffset((o) => o + limit);
-            }
+            if (first?.isIntersecting) setOffset((o) => o + limit);
         }, { rootMargin: "200px" });
 
         io.observe(el);
@@ -139,14 +134,11 @@ export default function Feed() {
                     <div className="p-4 muted">No activity yet.</div>
                 ) : (
                     <ul className="list-none m-0 p-0">
-                        {items.map((a) => (
-                            <ActivityRow key={a.id} a={a} />
-                        ))}
+                        {items.map((a) => <ActivityRow key={a.id} a={a} />)}
                     </ul>
                 )}
             </div>
 
-            {/* infinite scroll sentinel */}
             {hasMore && <div ref={loadMoreRef} className="h-8" />}
             {!hasMore && items.length > 0 && <div className="muted text-center text-sm mt-3">You’re all caught up.</div>}
         </div>
