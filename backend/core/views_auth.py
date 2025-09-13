@@ -52,13 +52,26 @@ def google_login(request):
     cred = request.data.get("credential")
     if not cred:
         return Response({"detail": "Missing credential"}, status=status.HTTP_400_BAD_REQUEST)
-    if not settings.GOOGLE_OAUTH_CLIENT_ID:
-        return Response({"detail": "Server missing GOOGLE_OAUTH_CLIENT_ID"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    ids = getattr(settings, "GOOGLE_OAUTH_CLIENT_IDS", set())
+    if not ids:
+        return Response({"detail": "Server missing GOOGLE_OAUTH_CLIENT_ID(S)"}, status=500)
 
     try:
-        info = id_token.verify_oauth2_token(cred, greq.Request(), settings.GOOGLE_OAUTH_CLIENT_ID)
-    except Exception:
-        return Response({"detail": "Invalid Google token"}, status=status.HTTP_400_BAD_REQUEST)
+        # Verify token without audience first; we'll check aud manually to allow multiple IDs
+        info = id_token.verify_oauth2_token(cred, greq.Request())
+        aud = info.get("aud")
+        if aud not in ids:
+            return Response(
+                {"detail": "Token audience mismatch", "aud": aud},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    except Exception as e:
+        msg = "Invalid Google token"
+        # Show real reason only when DEBUG=True (local dev)
+        if settings.DEBUG:
+            msg += f" ({e.__class__.__name__}: {e})"
+        return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
     email = (info.get("email") or "").lower()
     email_local = email.split("@")[0] if "@" in email else "user"

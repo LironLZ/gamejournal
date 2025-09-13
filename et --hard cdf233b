@@ -1,0 +1,62 @@
+* [33mcdf233b[m[33m ([m[1;31morigin/main[m[33m)[m fix:friends list in feed
+* [33mc8b30c4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m feat(navbar,routes): hide Home for logged-in users, remove Friends tab (merged into Feed)
+* [33md110564[m feat: add Reviews + About/Genres (read-more) to GameDetails; implement favorites end-to-end (/me/favorites + FavoriteButton w/ optimistic toggle + immediate UI flip); add 9-slot Favorite Games grid on PublicProfile (smaller covers) & align ‘wishlist’ stat; normalize PLANNING→WISHLIST; assorted UI polish and bugfixes
+* [33mee0ae57[m feat: add Reviews + About/Genres (read-more) to GameDetails; implement favorites end-to-end (/me/favorites + FavoriteButton w/ optimistic toggle + immediate UI flip); add 9-slot Favorite Games grid on PublicProfile (smaller covers) & align ‘wishlist’ stat; normalize PLANNING→WISHLIST; assorted UI polish and bugfixes
+* [33m1d65c6e[m feat(api,ui): renaming
+* [33m8d1bd28[m feat(public-game): include avatar_url for recent entries and render avatars in GameDetails
+* [33m452a7bc[m feat(api/ui): show avatars in Game Details
+* [33ma7d2de6[m feat(api,ui): add /public/games/<id>/ with entry avatar_url; show avatars + clickable usernames in Game Details, Recent community entries
+* [33mdba84ad[m (fix):remove redundant buttons follow/unfollow and back to app, fix avatars on feed and game details
+* [33m4ca3f9d[m feat(ui): make usernames/avatars clickable, link public profile entries to game pages, and disable add friend after request
+* [33m8a8e5ea[m feed: include actor avatar in activity payload and render avatar in UI (add actor_avatar_url, select_related actor__profile, pass request context)
+* [33md01a8d1[m privacy(search-users): hide staff/superuser/self/friends/pending; require ≥2 chars; update Friends page search UX (no auto-list, disabled button + hint)
+* [33m87982d4[m feat(friends): mutual friendships + requests, user search, UI updates
+* [33m8ca6156[m tiny fix
+* [33m44ed4d4[m feat(avatar): enable Cloudinary media storage
+* [33m8002668[m feat(profile): add user avatars (Profile model + upload endpoint, local/Cloudinary media), show on public profile and new /me settings
+* [33m7920273[m feat(media): enable optional Cloudinary storage via CLOUDINARY_URL; add cloudinary apps, default file storage switch, and tidy static/media settings
+* [33m421fb55[m fix(login): resolve TS compile error
+* [33mf4496ed[m feat(auth): make prod SSO-only
+* [33m3b61f0a[m admin login fix
+* [33m64f4527[m fix(deploy): add google-auth for Google ID token verification
+* [33m877aebd[m feat(auth): add Google SSO login + first-time username picker; disable public registration by default; update backend routes and frontend Login/routes
+* [33me059b05[m Fix GameDetails route param: change /game/:id -> /game/:gameId to match useParams; resolves 404 from Discover clicks
+* [33m4a1904d[m Public game detail endpoint (uses PLAYED), discover top>=1
+* [33m7df6d5e[m Discover: show Top rated with >=1 rating
+* [33mb4a34b8[m Rename PAUSED→PLAYED across app, fix public profile stats, add Discover, polish UI, remove Games page
+* [33mc19c8fa[m Remove Games page, navbar link; redirect /games -> /discover
+* [33md815d43[m Public game detail endpoint with aggregates and recent activity, Wire game details page
+* [33m6b5954e[m Add public Discover page and make it the guest landing; wire nav + pagination
+* [33m5b2647f[m Fix inputs in dark mode: style input[type=text]/no-type + add type=text to username fields
+* [33m6df47fd[m UI: use shared StatusBadge + brand tile highlights (indigo/crimson scheme)
+* [33m78a070e[m UI: dark-mode surfaces + readable stat tiles/badges; Tailwind tokens
+* [33m4596141[m chore(frontend): add tailwindcss v3 + postcss + autoprefixer devDeps
+* [33ma46728b[m chore(netlify): base=frontend + SPA redirect
+* [33mf7d65c9[m feat(ui): Tailwind v3 setup + indigo/crimson theme + site-wide dark mode toggle
+[31m|[m * [33m8b26011[m[33m ([m[1;31morigin/rescue/before-revert[m[33m, [m[1;32mrescue/before-revert[m[33m)[m WIP: save before revert
+[31m|[m * [33mfc629aa[m[33m ([m[1;31morigin/feat/tailwind-dark-mode[m[33m)[m build: Netlify config + Tailwind v4 PostCSS plugin
+[31m|[m * [33m5f6a5fe[m feat(api): public profile exposes avg_score; wire endpoint
+[31m|[m * [33m4b37e62[m[33m ([m[1;32mfeat/tailwind-dark-mode[m[33m)[m feat(ui): Tailwind polish for Entries (tiles, controls, list)
+[31m|[m * [33ma25fb8e[m feat(ui): Tailwind refactor for PublicProfile + dark variants
+[31m|[m * [33m48cef69[m feat(ui): site-wide dark mode toggle + Tailwind nav/auth styling
+[31m|[m * [33m115af92[m style: add Tailwind, theme tokens, and no-flash dark-mode bootstrap
+[31m|[m[31m/[m  
+* [33m9040883[m UX: clickable, color-coded stat tiles; subtle card shadows
+* [33m2ca798c[m Entries: add status filter and Avg score (client-side)
+* [33m23b4abc[m PublicProfile: show Joined date; align types with backend response
+* [33m5c239a3[m Backend: remove minutes from stats and public profile responses
+* [33m6b7f3f5[m Entries: remove minutes; show Paused and Dropped stats
+* [33m55a28a8[m Fix TS narrowing for PublicProfile: guard on error payload
+* [33md0e1bea[m Fix: use <Link> for profile nav, reorder routes, patch PublicProfile TS
+* [33m25ecf0a[m fix(router): single App + public profile route + SPA redirect
+* [33m4bc012a[m feat(frontend): add public profile page and route
+* [33m1ac5ac1[m feat(public): add public profile API and page
+* [33m64dfdd7[m api: add axios refresh-token interceptor
+* [33m5c219c0[m auth: extend JWT lifetimes (30m/14d)
+* [33maffa826[m chore(netlify): lock build & SPA redirects
+* [33m9a0ddae[m fix(frontend): add react type defs
+* [33mb4fb24b[m chore(frontend): set jsx=react-jsx and DOM libs
+* [33m054a5a8[m netlify: add SPA redirects
+* [33m2b95cb4[m chore(deploy): monorepo config (rootDir=backend)
+* [33m9c6b6f2[m chore: prod-ready settings (whitenoise, dj-database-url)
+* [33m26b3f4c[m chore: initial MVP (API+frontend) and .gitignore

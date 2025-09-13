@@ -83,8 +83,6 @@ export default function Landing() {
     const slides: Slide[] = [
         { src: "/landing/slide1.webp", alt: "Discover games without logging in" },
         { src: "/landing/slide2.png", alt: "Game details page" },
-        { src: "/landing/slide3.jpg", alt: "Public profile with stats" },
-        { src: "/landing/slide4.jpg", alt: "Discover page" },
     ];
 
     return (

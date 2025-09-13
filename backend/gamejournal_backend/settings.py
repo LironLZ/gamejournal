@@ -87,7 +87,15 @@ SPECTACULAR_SETTINGS = {
 }
 
 # --- SSO / Auth feature flags ------------------------------------------------
-GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+
+# NEW: allow multiple client IDs (comma-separated) so local + Netlify both work
+GOOGLE_OAUTH_CLIENT_IDS = {
+    s.strip() for s in os.getenv(
+        "GOOGLE_OAUTH_CLIENT_IDS",
+        GOOGLE_OAUTH_CLIENT_ID  # fall back to the single value
+    ).split(",") if s.strip()
+}
 ENFORCE_ALLOWLIST = os.getenv("ENFORCE_ALLOWLIST", "false").lower() == "true"
 ALLOWED_EMAILS = {e.strip().lower() for e in os.getenv("ALLOWED_EMAILS", "").split(",") if e.strip()}
 
