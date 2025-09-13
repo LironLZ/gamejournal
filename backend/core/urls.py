@@ -40,6 +40,9 @@ urlpatterns = [
     path('search/games/', views.search_games_external, name='search-games'),
     path('import/game/',  views.import_game,           name='import-game'),
 
+    # favorites (me)
+    path('me/favorites/', views.my_favorites, name='my-favorites'),
+
     # feed (me + my friends)
     path('feed/', views.activity_feed, name='activity-feed'),
 

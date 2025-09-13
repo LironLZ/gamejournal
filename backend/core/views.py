@@ -21,7 +21,7 @@ from drf_spectacular.utils import extend_schema, OpenApiExample
 
 from .models import (
     GameEntry, PlaySession, Game, Profile, Activity,
-    Friendship, FriendRequest,
+    Friendship, FriendRequest, Genre, FavoriteGame,
 )
 from .serializers import (
     RegisterSerializer,
@@ -192,13 +192,21 @@ def public_profile(request, username: str):
         .order_by("-updated_at")
     )
 
-    stats = qs.aggregate(
+    stats_raw = qs.aggregate(
         total=Count("id"),
         wishlisted=Count("id", filter=Q(status=GameEntry.Status.WISHLIST)),
         playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
         played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),
         dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
     )
+    # Frontend expects `wishlist` key; map for compatibility.
+    stats = {
+        "total": stats_raw.get("total", 0),
+        "wishlist": stats_raw.get("wishlisted", 0),
+        "playing": stats_raw.get("playing", 0),
+        "played": stats_raw.get("played", 0),
+        "dropped": stats_raw.get("dropped", 0),
+    }
 
     # Avatar
     avatar_url = None
@@ -216,6 +224,20 @@ def public_profile(request, username: str):
     friends = User.objects.filter(id__in=friend_ids).select_related("profile").order_by("username")[:12]
     friends_preview = FriendMiniSerializer(friends, many=True, context={"request": request}).data
 
+    # Favorites (up to 9)
+    favs_qs = (
+        FavoriteGame.objects
+        .filter(user=user)
+        .select_related("game")
+        .order_by("position", "id")[:9]
+    )
+    favorites = [{
+        "id": fg.game.id,
+        "title": fg.game.title,
+        "cover_url": getattr(fg.game, "cover_url", None),
+        "release_year": fg.game.release_year,
+    } for fg in favs_qs]
+
     return Response({
         "user": {
             "id": user.id,
@@ -229,6 +251,7 @@ def public_profile(request, username: str):
             "preview": friends_preview,
         },
         "entries": entries,
+        "favorites": favorites,  # ← included
     })
 
 
@@ -316,18 +339,30 @@ def search_games_external(request):
     return Response(items)
 
 
+def _strip_html(s: str) -> str:
+    return re.sub(r"<[^>]+>", "", s or "").strip()
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def import_game(request):
+    """
+    Body: { rawg_id: number }
+    Creates/updates a Game, filling cover_url, description, genres, rawg_id.
+    """
     rawg_id = request.data.get("rawg_id")
     if not rawg_id:
         return Response({"detail": "rawg_id required"}, status=400)
+    try:
+        rid = int(rawg_id)
+    except Exception:
+        return Response({"detail": "rawg_id must be an integer"}, status=400)
 
     if not RAWG_API_KEY:
         return Response({"detail": "RAWG_API_KEY missing on server"}, status=500)
 
     r = requests.get(
-        f"https://api.rawg.io/api/games/{rawg_id}",
+        f"https://api.rawg.io/api/games/{rid}",
         params={"key": RAWG_API_KEY},
         timeout=10,
     )
@@ -338,19 +373,99 @@ def import_game(request):
     released = g.get("released") or ""
     year = int(released[:4]) if released[:4].isdigit() else None
     cover = g.get("background_image")
+    desc = _strip_html(g.get("description_raw") or g.get("description") or "")
 
-    game, created = Game.objects.get_or_create(
-        title=title,
-        defaults={"release_year": year, "cover_url": cover},
-    )
-    if not created and cover and not game.cover_url:
+    # Get or create by rawg_id first (preferred), else fallback to title
+    game = Game.objects.filter(rawg_id=rid).first()
+    if not game:
+        game, _ = Game.objects.get_or_create(
+            title=title,
+            defaults={"release_year": year, "cover_url": cover},
+        )
+
+    # Update fields
+    changed = False
+    if game.rawg_id != rid:
+        game.rawg_id = rid
+        changed = True
+    if cover and not game.cover_url:
         game.cover_url = cover
-        game.save(update_fields=["cover_url"])
+        changed = True
+    if desc and not game.description:
+        game.description = desc
+        changed = True
+    if year and not game.release_year:
+        game.release_year = year
+        changed = True
+    if changed:
+        game.save()
+
+    # Genres
+    raw_genres = [x.get("name") for x in (g.get("genres") or []) if x.get("name")]
+    if raw_genres:
+        for name in raw_genres:
+            gen, _ = Genre.objects.get_or_create(name=name)
+            game.genres.add(gen)
 
     return Response(
-        {"id": game.id, "title": game.title, "release_year": game.release_year, "cover_url": game.cover_url},
-        status=201
+        {
+            "id": game.id,
+            "title": game.title,
+            "release_year": game.release_year,
+            "cover_url": game.cover_url,
+            "description": game.description,
+            "genres": list(game.genres.values_list("name", flat=True)),
+        },
+        status=201,
     )
+
+
+# ---------- Favorites (me) ----------
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def my_favorites(request):
+    """
+    GET -> [{id,title,cover_url,release_year}]
+    PUT -> {"items":[game_id,...]}  # keeps order; max 9
+    """
+    if request.method == "GET":
+        favs = (
+            FavoriteGame.objects
+            .filter(user=request.user)
+            .select_related("game")
+            .order_by("position", "id")[:9]
+        )
+        return Response([{
+            "id": f.game.id,
+            "title": f.game.title,
+            "cover_url": getattr(f.game, "cover_url", None),
+            "release_year": f.game.release_year,
+        } for f in favs])
+
+    items = request.data.get("items")
+    if not isinstance(items, list):
+        return Response({"detail": "Send {'items': [game_id,...]}."}, status=400)
+
+    # distinct ints, max 9
+    try:
+        seen, ids = set(), []
+        for x in items:
+            gid = int(x)
+            if gid not in seen:
+                seen.add(gid)
+                ids.append(gid)
+    except Exception:
+        return Response({"detail": "items must be integers."}, status=400)
+    ids = ids[:9]
+
+    games = {g.id: g for g in Game.objects.filter(id__in=ids)}
+    FavoriteGame.objects.filter(user=request.user).delete()
+    for pos, gid in enumerate(ids):
+        g = games.get(gid)
+        if g:
+            FavoriteGame.objects.create(user=request.user, game=g, position=pos)
+
+    return Response({"ok": True, "count": len(ids)})
 
 
 # ---------- Permissions ----------
@@ -567,9 +682,9 @@ def public_game_detail(request, game_id: int):
     """
     GET /api/public/games/<game_id>/
     Public stats + recent community entries for a game.
-    Each entry includes username and avatar_url (if uploaded).
+    Now includes: description and genres.
     """
-    game = get_object_or_404(Game, pk=game_id)
+    game = get_object_or_404(Game.objects.prefetch_related("genres"), pk=game_id)
 
     qs = (
         GameEntry.objects
@@ -582,7 +697,7 @@ def public_game_detail(request, game_id: int):
         ratings_count=Count("score"),
         avg_score=Avg("score"),
         last_entry_at=Max("updated_at"),
-        wishlisted=Count("id", filter=Q(status=GameEntry.Status.WISHLIST)),  # unified key
+        wishlisted=Count("id", filter=Q(status=GameEntry.Status.WISHLIST)),
         playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
         played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),
         dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
@@ -616,6 +731,8 @@ def public_game_detail(request, game_id: int):
             "title": game.title,
             "release_year": game.release_year,
             "cover_url": getattr(game, "cover_url", None),
+            "description": game.description or "",
+            "genres": list(game.genres.values_list("name", flat=True)),
         },
         "stats": stats,
         "entries": entries,
@@ -644,7 +761,7 @@ def activity_feed(request):
     qs = (
         Activity.objects
         .filter(actor_id__in=user_ids)
-        .select_related("game", "actor", "actor__profile")  # include actor profile for avatar
+        .select_related("game", "actor", "actor__profile")
         .order_by("-created_at")
     )[offset: offset + limit]
 

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.db.models import Sum
-from .models import Platform, Game, GameEntry, PlaySession, Activity, Friendship, FriendRequest
+from .models import Platform, Game, GameEntry, PlaySession, Activity, Friendship, FriendRequest, Genre
 
 User = get_user_model()
 
@@ -12,7 +12,14 @@ class PlatformSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
 
 
+class GenreSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Genre
+        fields = ["name", "slug"]
+
+
 class GameSerializer(serializers.ModelSerializer):
+    # Keep for any internal use; platforms optional
     platforms = PlatformSerializer(many=True, read_only=True)
 
     class Meta:
@@ -49,7 +56,12 @@ class GameEntrySerializer(serializers.ModelSerializer):
         ]
 
     def get_game(self, obj):
-        return {"id": obj.game.id, "title": obj.game.title, "release_year": obj.game.release_year, "cover_url": getattr(obj.game, "cover_url", None)}
+        return {
+            "id": obj.game.id,
+            "title": obj.game.title,
+            "release_year": obj.game.release_year,
+            "cover_url": getattr(obj.game, "cover_url", None)
+        }
 
     def get_total_minutes(self, obj):
         return obj.sessions.aggregate(s=Sum('duration_min'))['s'] or 0
