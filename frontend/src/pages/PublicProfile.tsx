@@ -17,24 +17,41 @@ type Entry = {
     };
 };
 
+type PublicGame = {
+    id: number;
+    title: string;
+    cover_url?: string | null;
+    release_year?: number | null;
+};
+
 type ProfilePayload =
     | {
         user: { id: number; username: string; joined: string; avatar_url?: string | null };
+        // Backend now maps wishlisted -> wishlist
         stats: { total: number; wishlist: number; playing: number; played: number; dropped: number };
         friends: { count: number; preview: Mini[] };
         entries: Entry[];
+        favorites?: PublicGame[]; // ← NEW
     }
     | { detail: string };
 
 const BADGE: Record<Status, string> = {
-    PLAYING: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
-    WISHLIST: "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
-    PLAYED: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
-    DROPPED: "bg-crimson-100 text-crimson-700 border-crimson-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
+    PLAYING:
+        "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
+    WISHLIST:
+        "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
+    PLAYED:
+        "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
+    DROPPED:
+        "bg-crimson-100 text-crimson-700 border-crimson-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
 };
 
 function StatusBadge({ s }: { s: Status }) {
-    return <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>{s}</span>;
+    return (
+        <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${BADGE[s]}`}>
+            {s}
+        </span>
+    );
 }
 
 const TILE_ACTIVE: Record<Status | "ALL", string> = {
@@ -69,7 +86,9 @@ export default function PublicProfile() {
                 if (mounted) setLoading(false);
             }
         })();
-        return () => { mounted = false; };
+        return () => {
+            mounted = false;
+        };
     }, [username]);
 
     if (loading) {
@@ -111,10 +130,12 @@ export default function PublicProfile() {
     if ("detail" in data) return <div className="container-page p-6 text-crimson-600">{(data as any).detail}</div>;
 
     const { user, stats, entries, friends } = data;
+    const favorites = (data as any).favorites as PublicGame[] | undefined;
     const joinedPretty = new Date(user.joined).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
     const visible = filter === "ALL" ? entries : entries.filter((e) => e.status === filter);
 
-    const avatar = user.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(user.username)}`;
+    const avatar =
+        user.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(user.username)}`;
 
     return (
         <div className="container-page">
@@ -126,15 +147,54 @@ export default function PublicProfile() {
                     </div>
                     <div>
                         <h2 className="m-0 text-2xl font-bold">{user.username} · Public Profile</h2>
-                        <div className="text-sm muted mt-1">Joined <b>{joinedPretty}</b></div>
+                        <div className="text-sm muted mt-1">
+                            Joined <b>{joinedPretty}</b>
+                        </div>
                     </div>
                 </div>
             </div>
 
+            {/* Favorite Games */}
+            <div className="card p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold">Favorite Games</h3>
+                    <div className="opacity-60 text-sm">{(favorites?.length || 0)}/9</div>
+                </div>
+                {favorites && favorites.length ? (
+                    <div className="grid grid-cols-3 gap-3">
+                        {favorites.slice(0, 9).map((g) => (
+                            <Link key={g.id} to={`/game/${g.id}`} className="block group">
+                                <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800">
+                                    <div className="aspect-[4/5] w-full overflow-hidden">
+                                        {g.cover_url ? (
+                                            <img
+                                                src={g.cover_url}
+                                                alt={g.title}
+                                                className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full grid place-items-center text-sm opacity-60">No cover</div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="mt-1 text-sm truncate">{g.title}</div>
+                            </Link>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="muted">No favorites yet.</div>
+                )}
+            </div>
+
             {/* Stats tiles */}
             <div className="flex gap-4 flex-wrap my-4">
-                <button type="button" onClick={() => setFilter("ALL")} className={`tile ${filter === "ALL" ? TILE_ACTIVE.ALL : ""}`}>
-                    <div className="stat-label">Total</div><div className="stat-value">{stats.total}</div>
+                <button
+                    type="button"
+                    onClick={() => setFilter("ALL")}
+                    className={`tile ${filter === "ALL" ? TILE_ACTIVE.ALL : ""}`}
+                >
+                    <div className="stat-label">Total</div>
+                    <div className="stat-value">{stats.total}</div>
                 </button>
                 {([
                     ["Wishlist", "WISHLIST", stats.wishlist],
@@ -149,7 +209,8 @@ export default function PublicProfile() {
                         className={`tile ${filter === key ? TILE_ACTIVE[key as Status] : ""}`}
                         title={`Show ${label.toLowerCase()} entries`}
                     >
-                        <div className="stat-label">{label}</div><div className="stat-value">{val}</div>
+                        <div className="stat-label">{label}</div>
+                        <div className="stat-value">{val}</div>
                     </button>
                 ))}
             </div>
@@ -159,7 +220,9 @@ export default function PublicProfile() {
                 <div className="flex items-center justify-between mb-2">
                     <div className="font-medium">Friends {friends ? `(${friends.count})` : ""}</div>
                     {friends && friends.count > 0 && (
-                        <Link className="link text-sm" to={`/friends/${encodeURIComponent(user.username)}`}>See all</Link>
+                        <Link className="link text-sm" to={`/friends/${encodeURIComponent(user.username)}`}>
+                            See all
+                        </Link>
                     )}
                 </div>
                 {!friends || friends.count === 0 ? (
@@ -180,7 +243,7 @@ export default function PublicProfile() {
 
             {/* Entries */}
             {visible.length === 0 ? (
-                <div className="card p-6 mt-4 text-center">
+                <div className="card p-4 mt-4 text-center">
                     <h3 className="text-lg font-semibold mb-1">No entries in this view</h3>
                     <p className="muted">Try a different filter.</p>
                 </div>

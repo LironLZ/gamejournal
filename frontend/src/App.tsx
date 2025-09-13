@@ -11,6 +11,7 @@ import LoginPage from "./pages/Login";
 import ChooseUsername from "./pages/ChooseUsername";
 import AvatarSettings from "./pages/AvatarSettings";
 import Feed from "./pages/Feed";
+import Landing from "./pages/Landing";
 import Friends from "./pages/Friends";
 import Wishlist from "./pages/Wishlist"; // NEW
 
@@ -41,9 +42,23 @@ function Register() {
   return (
     <form onSubmit={submit} className="max-w-sm mx-auto mt-10 card p-4">
       <h2 className="text-xl font-semibold mb-2">Register</h2>
-      <input type="text" className="input w-full my-2" placeholder="Username" value={username} onChange={(e) => setU(e.target.value)} />
-      <input type="password" className="input w-full my-2" placeholder="Password" value={password} onChange={(e) => setP(e.target.value)} />
-      <button className="btn-primary mt-2" type="submit">Sign up</button>
+      <input
+        type="text"
+        className="input w-full my-2"
+        placeholder="Username"
+        value={username}
+        onChange={(e) => setU(e.target.value)}
+      />
+      <input
+        type="password"
+        className="input w-full my-2"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setP(e.target.value)}
+      />
+      <button className="btn-primary mt-2" type="submit">
+        Sign up
+      </button>
       <div className="mt-2 text-zinc-600 dark:text-zinc-300 text-sm">{msg}</div>
     </form>
   );
@@ -65,7 +80,11 @@ export default function App() {
       try {
         const who = await api.get("/auth/whoami/");
         const u = who.data?.user as string | undefined;
-        if (!u) { setUsername(null); setAvatar(null); return; }
+        if (!u) {
+          setUsername(null);
+          setAvatar(null);
+          return;
+        }
         setUsername(u);
 
         try {
@@ -90,25 +109,54 @@ export default function App() {
   }
 
   const match = useMatch("/u/:username");
-  const onOwnProfile = !!(authed && username && match?.params?.username?.toLowerCase() === username.toLowerCase());
+  const onOwnProfile =
+    !!(authed && username && match?.params?.username?.toLowerCase() === username.toLowerCase());
 
   return (
     <div className="min-h-screen">
       <nav className="sticky top-0 z-10 border-b bg-white/70 backdrop-blur dark:bg-zinc-900/70 dark:border-zinc-800">
         <div className="max-w-[960px] mx-auto px-3 h-12 flex items-center gap-4">
-          <Link className="nav-link" to="/discover">Discover</Link>
-          <Link className="nav-link" to="/entries">Entries</Link>
+          <Link className="nav-link" to="/">
+            Home
+          </Link>
+          <Link className="nav-link" to="/discover">
+            Discover
+          </Link>
+          <Link className="nav-link" to="/entries">
+            Entries
+          </Link>
 
-          {authed && <Link className="nav-link" to="/feed">Feed</Link>}
-          {authed && <Link className="nav-link" to="/friends">Friends</Link>}
+          {authed && (
+            <>
+              <Link className="nav-link" to="/feed">
+                Feed
+              </Link>
+              <Link className="nav-link" to="/friends">
+                Friends
+              </Link>
+              <Link className="nav-link" to="/wishlist">
+                Wishlist
+              </Link>
+            </>
+          )}
 
           <div className="ml-auto flex items-center gap-3">
             <ThemeToggle />
             {authed ? (
               <>
-                {avatar ? <img src={avatar} alt="me" className="w-7 h-7 rounded-full border dark:border-zinc-700" /> : null}
+                {avatar ? (
+                  <img
+                    src={avatar}
+                    alt="me"
+                    className="w-7 h-7 rounded-full border dark:border-zinc-700"
+                  />
+                ) : null}
                 <span className="text-sm opacity-80">
-                  Hello{username ? <>,&nbsp;<b>{username}</b></> : null}
+                  Hello{username ? (
+                    <>
+                      ,&nbsp;<b>{username}</b>
+                    </>
+                  ) : null}
                 </span>
 
                 {username && (
@@ -123,7 +171,9 @@ export default function App() {
                   </Link>
                 )}
 
-                <button className="btn-outline" onClick={logout}>Logout</button>
+                <button className="btn-outline" onClick={logout}>
+                  Logout
+                </button>
               </>
             ) : (
               <>
@@ -136,24 +186,30 @@ export default function App() {
       </nav>
 
       <Routes>
-        <Route path="/u/:username" element={<PublicProfile />} />
+        {/* Public pages */}
+        <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Landing />} />
         <Route path="/discover" element={<Discover />} />
         <Route path="/game/:gameId" element={<GameDetails />} />
         <Route path="/games" element={<Navigate to="/discover" replace />} />
-        <Route path="/" element={authed ? <Navigate to="/entries" replace /> : <Discover />} />
+        <Route path="/u/:username" element={<PublicProfile />} />
 
-        <Route path="/register" element={enableRegister ? <Register /> : <Navigate to="/login" replace />} />
+        {/* Auth pages */}
+        <Route
+          path="/register"
+          element={enableRegister ? <Register /> : <Navigate to="/login" replace />}
+        />
         <Route path="/login" element={<LoginPage />} />
 
+        {/* Protected pages */}
         <Route path="/setup/username" element={<ProtectedRoute><ChooseUsername /></ProtectedRoute>} />
         <Route path="/entries" element={<ProtectedRoute><Entries /></ProtectedRoute>} />
         <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
         <Route path="/feed" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
         <Route path="/settings/profile" element={<ProtectedRoute><AvatarSettings /></ProtectedRoute>} />
-
         <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
         <Route path="/friends/:username" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
 
+        {/* 404 */}
         <Route path="*" element={<div className="p-6">Not found</div>} />
       </Routes>
     </div>

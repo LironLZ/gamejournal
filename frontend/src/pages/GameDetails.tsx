@@ -1,13 +1,23 @@
+// src/pages/GameDetails.tsx
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import api from "../api";
 import QuickAdd from "../components/QuickAdd";
+import FavoriteButton from "../components/FavoriteButton";
 
 // Local status type matches backend (supports both old PLANNING and new WISHLIST for safety)
 type Status = "WISHLIST" | "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED";
 
 type GameDetail = {
-    game: { id: number; title: string; release_year?: number | null; cover_url?: string | null };
+    game: {
+        id: number;
+        title: string;
+        release_year?: number | null;
+        cover_url?: string | null;
+        // optional from backend:
+        description?: string | null;
+        genres?: string[]; // names
+    };
     stats: {
         ratings_count: number | null;
         avg_score: number | null;
@@ -83,6 +93,13 @@ function avatarOrFallback(username: string, avatar?: string | null) {
     return avatar || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(username)}`;
 }
 
+function truncateAtWord(s: string, max = 220) {
+    if (s.length <= max) return s;
+    const cut = s.slice(0, max);
+    const lastSpace = cut.lastIndexOf(" ");
+    return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trim() + "…";
+}
+
 export default function GameDetails() {
     const { gameId = "" } = useParams<{ gameId: string }>();
     const [data, setData] = useState<GameDetail | null>(null);
@@ -91,6 +108,9 @@ export default function GameDetails() {
 
     const authed = !!localStorage.getItem("access");
     const [myEntry, setMyEntry] = useState<MyEntry | null>(null);
+
+    // description toggle
+    const [expanded, setExpanded] = useState(false);
 
     useEffect(() => {
         let mounted = true;
@@ -103,6 +123,7 @@ export default function GameDetails() {
                 const payload = resp.data;
                 payload.entries = Array.isArray(payload.entries) ? payload.entries : [];
                 setData(payload);
+                setExpanded(false); // reset when switching games
             } catch (e: any) {
                 setErr(e?.response?.data?.detail || e?.message || "Failed to load.");
             } finally {
@@ -161,6 +182,12 @@ export default function GameDetails() {
     // Prefer new backend key; fall back to legacy planning
     const wishlistedCount = (stats as any).wishlisted ?? (stats as any).planning ?? 0;
 
+    const desc = (game.description || "").trim();
+    const hasGenres = Array.isArray(game.genres) && game.genres.length > 0;
+
+    // Reviews derived from entries (score or notes)
+    const reviews = entries.filter((e) => (e.notes && e.notes.trim().length > 0) || e.score !== null);
+
     return (
         <div className="container-page">
             {/* Header */}
@@ -193,7 +220,50 @@ export default function GameDetails() {
                             );
                         }}
                     />
+                    <FavoriteButton gameId={game.id} /> {/* Favorite button */}
                     <Link to="/discover" className="btn-outline">← Back</Link>
+                </div>
+            </div>
+
+            {/* About + Genres */}
+            <div className="grid md:grid-cols-3 gap-3 my-4">
+                <div className="card p-4 md:col-span-2">
+                    <h3 className="text-lg font-semibold mb-2">About</h3>
+                    {desc ? (
+                        <p className="text-sm opacity-90">
+                            {expanded || desc.length <= 220 ? desc : truncateAtWord(desc, 220)}
+                            {desc.length > 220 && (
+                                <button
+                                    className="ml-2 text-blue-500 hover:underline"
+                                    onClick={() => setExpanded((v) => !v)}
+                                >
+                                    {expanded ? "Show less" : "Read more"}
+                                </button>
+                            )}
+                        </p>
+                    ) : (
+                        <p className="text-sm opacity-60">No description yet.</p>
+                    )}
+                </div>
+
+                <div className="card p-4">
+                    <h3 className="text-lg font-semibold mb-2">Genres</h3>
+                    {hasGenres ? (
+                        <div className="flex flex-wrap gap-2">
+                            {game.genres!.map((g) => (
+                                <span
+                                    key={g}
+                                    className="inline-block px-2 py-1 rounded border text-xs
+                             border-zinc-300 dark:border-zinc-700
+                             bg-zinc-100 dark:bg-zinc-800"
+                                >
+                                    {g}
+                                </span>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm opacity-60">—</p>
+                    )}
                 </div>
             </div>
 
@@ -212,7 +282,6 @@ export default function GameDetails() {
                     <div className="stat-value">{fmtDate(stats.last_entry_at)}</div>
                 </div>
 
-                {/* Renamed tile */}
                 <div className="card p-3">
                     <div className="stat-label mb-1">Wishlisted</div>
                     <div className="stat-value">{wishlistedCount}</div>
@@ -230,8 +299,6 @@ export default function GameDetails() {
                     <div className="stat-label mb-1">Dropped</div>
                     <div className="stat-value">{stats.dropped ?? 0}</div>
                 </div>
-
-                {/* "Completed" removed per design (keep just Played) */}
             </div>
 
             {/* Recent entries */}
@@ -261,6 +328,43 @@ export default function GameDetails() {
                                     <div className="pill-score">{en.score ?? "—"}</div>
                                 </div>
                                 {en.notes && <div className="text-sm mt-1 whitespace-pre-wrap">{en.notes}</div>}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            {/* Reviews */}
+            <div className="card p-4 mt-4" id="reviews">
+                <h3 className="text-lg font-semibold mb-2">
+                    Reviews <span className="opacity-60">({reviews.length})</span>
+                </h3>
+
+                {reviews.length === 0 ? (
+                    <div className="muted">No reviews yet.</div>
+                ) : (
+                    <ul className="list-none p-0 m-0">
+                        {reviews.map((r, i) => (
+                            <li key={i} className="border-b border-zinc-200 dark:border-zinc-700 last:border-0 py-3">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <Link to={`/u/${encodeURIComponent(r.username)}`} className="shrink-0">
+                                            <img
+                                                src={avatarOrFallback(r.username, r.avatar_url)}
+                                                alt={`${r.username} avatar`}
+                                                className="w-7 h-7 rounded-full border dark:border-zinc-700"
+                                            />
+                                        </Link>
+                                        <div className="min-w-0">
+                                            <Link to={`/u/${encodeURIComponent(r.username)}`} className="font-medium truncate link">
+                                                {r.username}
+                                            </Link>
+                                            <div className="text-xs muted">{fmtDate(r.updated_at)}</div>
+                                        </div>
+                                    </div>
+                                    <div className="pill-score">{r.score ?? "—"}</div>
+                                </div>
+                                {r.notes && <div className="text-sm mt-2 whitespace-pre-wrap">{r.notes}</div>}
                             </li>
                         ))}
                     </ul>
