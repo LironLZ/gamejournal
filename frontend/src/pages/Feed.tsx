@@ -13,6 +13,8 @@ type Activity = {
     created_at: string;
 };
 
+type MiniUser = { id: number; username: string; avatar_url?: string | null };
+
 function timeAgo(iso: string) {
     const d = new Date(iso);
     const s = Math.floor((Date.now() - d.getTime()) / 1000);
@@ -86,6 +88,30 @@ export default function Feed() {
     const loadMoreRef = useRef<HTMLDivElement | null>(null);
     const [hasMore, setHasMore] = useState(true);
 
+    // friends + search (merged Friends page)
+    const [me, setMe] = useState<string>("");
+    const [friends, setFriends] = useState<MiniUser[]>([]);
+    const [q, setQ] = useState("");
+    const [searchResults, setSearchResults] = useState<MiniUser[]>([]);
+
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const { data } = await api.get<{ user: string }>("/whoami/");
+                if (!alive) return;
+                setMe(data.user);
+                // public friends list of self -> minis
+                const fr = await api.get<{ results: MiniUser[] }>(`/friends/${encodeURIComponent(data.user)}/`);
+                if (!alive) return;
+                setFriends(Array.isArray(fr.data.results) ? fr.data.results : []);
+            } catch {
+                // ignore
+            }
+        })();
+        return () => { alive = false; };
+    }, []);
+
     useEffect(() => {
         let alive = true;
         (async () => {
@@ -120,29 +146,89 @@ export default function Feed() {
         return () => io.disconnect();
     }, [hasMore, loading]);
 
+    async function doSearch() {
+        const term = q.trim();
+        if (term.length < 2) { setSearchResults([]); return; }
+        try {
+            const { data } = await api.get<MiniUser[]>("/users/", { params: { q: term } });
+            setSearchResults(Array.isArray(data) ? data : []);
+        } catch {
+            setSearchResults([]);
+        }
+    }
+
     return (
         <div className="container-page">
-            <div className="card p-4 mb-3">
-                <h2 className="text-xl font-bold">Activity</h2>
-                <div className="text-sm muted">People you follow + your own updates</div>
+            <div className="grid md:grid-cols-3 gap-4">
+                {/* Left column: Friends + Search */}
+                <div className="md:col-span-1">
+                    <div className="card p-3 mb-3">
+                        <div className="font-semibold mb-2">Find users</div>
+                        <div className="flex gap-2">
+                            <input
+                                className="input flex-1"
+                                placeholder="Search by username…"
+                                value={q}
+                                onChange={(e) => setQ(e.target.value)}
+                            />
+                            <button className="btn" onClick={doSearch}>Search</button>
+                        </div>
+                        {searchResults.length > 0 && (
+                            <ul className="list-none p-0 m-0 mt-2">
+                                {searchResults.map((u) => (
+                                    <li key={u.id} className="py-1 flex items-center gap-2">
+                                        <img className="w-6 h-6 rounded-full border"
+                                            src={u.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(u.username)}`} />
+                                        <Link className="link" to={`/u/${encodeURIComponent(u.username)}`}>{u.username}</Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+
+                    <div className="card p-3">
+                        <div className="font-semibold mb-2">Friends {friends.length ? `(${friends.length})` : ""}</div>
+                        {friends.length === 0 ? (
+                            <div className="muted text-sm">No friends yet.</div>
+                        ) : (
+                            <ul className="list-none p-0 m-0">
+                                {friends.map((f) => (
+                                    <li key={f.id} className="py-1 flex items-center gap-2">
+                                        <img className="w-6 h-6 rounded-full border"
+                                            src={f.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(f.username)}`} />
+                                        <Link className="link" to={`/u/${encodeURIComponent(f.username)}`}>{f.username}</Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right column: Activity */}
+                <div className="md:col-span-2">
+                    <div className="card p-4 mb-3">
+                        <h2 className="text-xl font-bold">Activity</h2>
+                        <div className="text-sm muted">People you follow + your own updates</div>
+                    </div>
+
+                    {err && <div className="card p-3 mb-3 text-crimson-600">{err}</div>}
+
+                    <div className="card p-0 overflow-hidden">
+                        {loading && items.length === 0 ? (
+                            <div className="p-4 muted">Loading…</div>
+                        ) : items.length === 0 ? (
+                            <div className="p-4 muted">No activity yet.</div>
+                        ) : (
+                            <ul className="list-none m-0 p-0">
+                                {items.map((a) => <ActivityRow key={a.id} a={a} />)}
+                            </ul>
+                        )}
+                    </div>
+
+                    {hasMore && <div ref={loadMoreRef} className="h-8" />}
+                    {!hasMore && items.length > 0 && <div className="muted text-center text-sm mt-3">You’re all caught up.</div>}
+                </div>
             </div>
-
-            {err && <div className="card p-3 mb-3 text-crimson-600">{err}</div>}
-
-            <div className="card p-0 overflow-hidden">
-                {loading && items.length === 0 ? (
-                    <div className="p-4 muted">Loading…</div>
-                ) : items.length === 0 ? (
-                    <div className="p-4 muted">No activity yet.</div>
-                ) : (
-                    <ul className="list-none m-0 p-0">
-                        {items.map((a) => <ActivityRow key={a.id} a={a} />)}
-                    </ul>
-                )}
-            </div>
-
-            {hasMore && <div ref={loadMoreRef} className="h-8" />}
-            {!hasMore && items.length > 0 && <div className="muted text-center text-sm mt-3">You’re all caught up.</div>}
         </div>
     );
 }

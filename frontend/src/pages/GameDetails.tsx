@@ -5,7 +5,7 @@ import api from "../api";
 import QuickAdd from "../components/QuickAdd";
 import FavoriteButton from "../components/FavoriteButton";
 
-// Local status type matches backend (supports both old PLANNING and new WISHLIST for safety)
+// Local status type (keep DROPPED for legacy display only)
 type Status = "WISHLIST" | "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED";
 
 type GameDetail = {
@@ -14,9 +14,8 @@ type GameDetail = {
         title: string;
         release_year?: number | null;
         cover_url?: string | null;
-        // optional from backend:
         description?: string | null;
-        genres?: string[]; // names
+        genres?: string[];
     };
     stats: {
         ratings_count: number | null;
@@ -27,9 +26,6 @@ type GameDetail = {
         planning?: number;
         playing: number;
         played: number;
-        dropped: number;
-        // may still exist in old data; we won’t render it
-        completed?: number;
     };
     entries: Array<{
         username: string;
@@ -51,7 +47,6 @@ type MyEntry = {
 };
 
 const BADGE: Record<Exclude<Status, "COMPLETED">, string> = {
-    // Use the same style for WISHLIST and legacy PLANNING
     WISHLIST:
         "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700",
     PLANNING:
@@ -68,7 +63,6 @@ function StatusBadge({ s }: { s: Status }) {
     // Normalize legacy PLANNING to display as Wishlisted
     const label = s === "PLANNING" ? "WISHLIST" : s;
     const keyForStyle = (s === "PLANNING" ? "WISHLIST" : s) as keyof typeof BADGE;
-    // COMPLETED isn’t shown in recent entries anymore, but guard just in case
     const cls = BADGE[keyForStyle] ?? "bg-zinc-100 text-zinc-700 border-zinc-200";
     return (
         <span className={`inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${cls}`}>
@@ -185,8 +179,8 @@ export default function GameDetails() {
     const desc = (game.description || "").trim();
     const hasGenres = Array.isArray(game.genres) && game.genres.length > 0;
 
-    // Reviews derived from entries (score or notes)
-    const reviews = entries.filter((e) => (e.notes && e.notes.trim().length > 0) || e.score !== null);
+    // Reviews: ONLY entries with text notes
+    const reviews = entries.filter((e) => !!(e.notes && e.notes.trim().length > 0));
 
     return (
         <div className="container-page">
@@ -254,8 +248,8 @@ export default function GameDetails() {
                                 <span
                                     key={g}
                                     className="inline-block px-2 py-1 rounded border text-xs
-                             border-zinc-300 dark:border-zinc-700
-                             bg-zinc-100 dark:bg-zinc-800"
+                           border-zinc-300 dark:border-zinc-700
+                           bg-zinc-100 dark:bg-zinc-800"
                                 >
                                     {g}
                                 </span>
@@ -294,10 +288,6 @@ export default function GameDetails() {
                 <div className="card p-3">
                     <div className="stat-label mb-1">Played</div>
                     <div className="stat-value">{stats.played ?? 0}</div>
-                </div>
-                <div className="card p-3">
-                    <div className="stat-label mb-1">Dropped</div>
-                    <div className="stat-value">{stats.dropped ?? 0}</div>
                 </div>
             </div>
 
@@ -364,7 +354,11 @@ export default function GameDetails() {
                                     </div>
                                     <div className="pill-score">{r.score ?? "—"}</div>
                                 </div>
-                                {r.notes && <div className="text-sm mt-2 whitespace-pre-wrap">{r.notes}</div>}
+                                {r.notes && (
+                                    <div className="text-sm mt-2 whitespace-pre-wrap">
+                                        {r.notes}
+                                    </div>
+                                )}
                             </li>
                         ))}
                     </ul>

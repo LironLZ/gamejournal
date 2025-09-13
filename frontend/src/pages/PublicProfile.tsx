@@ -27,11 +27,11 @@ type PublicGame = {
 type ProfilePayload =
     | {
         user: { id: number; username: string; joined: string; avatar_url?: string | null };
-        // Backend now maps wishlisted -> wishlist
-        stats: { total: number; wishlist: number; playing: number; played: number; dropped: number };
+        // Backend maps wishlisted -> wishlist
+        stats: { total: number; wishlist: number; playing: number; played: number };
         friends: { count: number; preview: Mini[] };
         entries: Entry[];
-        favorites?: PublicGame[]; // ← NEW
+        favorites?: PublicGame[];
     }
     | { detail: string };
 
@@ -54,12 +54,11 @@ function StatusBadge({ s }: { s: Status }) {
     );
 }
 
-const TILE_ACTIVE: Record<Status | "ALL", string> = {
+const TILE_ACTIVE: Record<Exclude<Status, "DROPPED"> | "ALL", string> = {
     ALL: "tile-active",
     WISHLIST: "tile-active border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/20",
     PLAYING: "tile-active border-sky-200 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20",
     PLAYED: "tile-active border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20",
-    DROPPED: "tile-active border-crimson-200 bg-crimson-50 dark:border-rose-700 dark:bg-rose-900/20",
 };
 
 export default function PublicProfile() {
@@ -67,7 +66,7 @@ export default function PublicProfile() {
     const [data, setData] = useState<ProfilePayload | null>(null);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState("");
-    const [filter, setFilter] = useState<"ALL" | Status>("ALL");
+    const [filter, setFilter] = useState<"ALL" | Exclude<Status, "DROPPED">>("ALL");
 
     useEffect(() => {
         let mounted = true;
@@ -200,13 +199,12 @@ export default function PublicProfile() {
                     ["Wishlist", "WISHLIST", stats.wishlist],
                     ["Playing", "PLAYING", stats.playing],
                     ["Played", "PLAYED", stats.played],
-                    ["Dropped", "DROPPED", stats.dropped],
                 ] as const).map(([label, key, val]) => (
                     <button
                         key={key}
                         type="button"
-                        onClick={() => setFilter(key as Status)}
-                        className={`tile ${filter === key ? TILE_ACTIVE[key as Status] : ""}`}
+                        onClick={() => setFilter(key as Exclude<Status, "DROPPED">)}
+                        className={`tile ${filter === key ? TILE_ACTIVE[key as Exclude<Status, "DROPPED">] : ""}`}
                         title={`Show ${label.toLowerCase()} entries`}
                     >
                         <div className="stat-label">{label}</div>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "../api";
 
-type Status = "WISHLIST" | "PLAYING" | "PLAYED" | "DROPPED";
+type Status = "WISHLIST" | "PLAYING" | "PLAYED" | "DROPPED"; // DROPPED kept for legacy values only
 
 type Entry = {
     id: number;
@@ -23,7 +24,6 @@ type Stats = {
     wishlist: number;
     playing: number;
     played: number;
-    dropped: number;
 };
 
 type GameLite = {
@@ -35,7 +35,7 @@ type GameLite = {
     background_image?: string | null;
 };
 
-const STATUSES: Status[] = ["WISHLIST", "PLAYING", "PLAYED", "DROPPED"];
+const STATUSES: Exclude<Status, "DROPPED">[] = ["WISHLIST", "PLAYING", "PLAYED"];
 
 /* Status badges */
 const BADGE: Record<Status, string> = {
@@ -54,12 +54,11 @@ function StatusBadge({ s }: { s: Status }) {
 }
 
 /* Active tile tints per status */
-const TILE_ACTIVE: Record<Status | "ALL", string> = {
+const TILE_ACTIVE: Record<Exclude<Status, "DROPPED"> | "ALL", string> = {
     ALL: "tile-active",
     WISHLIST: "tile-active border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/20",
     PLAYING: "tile-active border-sky-200 bg-sky-50 dark:border-sky-700 dark:bg-sky-900/20",
     PLAYED: "tile-active border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20",
-    DROPPED: "tile-active border-crimson-200 bg-crimson-50 dark:border-rose-700 dark:bg-rose-900/20",
 };
 
 export default function Entries() {
@@ -67,19 +66,19 @@ export default function Entries() {
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const [filter, setFilter] = useState<"ALL" | Status>("ALL");
+    const [filter, setFilter] = useState<"ALL" | Exclude<Status, "DROPPED">>("ALL");
 
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<GameLite[]>([]);
     const [showDrop, setShowDrop] = useState(false);
     const [selected, setSelected] = useState<GameLite | null>(null);
-    const [status, setStatus] = useState<Status>("WISHLIST");
+    const [status, setStatus] = useState<Exclude<Status, "DROPPED">>("WISHLIST");
     const [msg, setMsg] = useState("");
     const dropdownRef = useRef<HTMLDivElement | null>(null);
     const debounceRef = useRef<number | null>(null);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-    type EditState = { score: string; notes: string; started_at: string; finished_at: string };
+    type EditState = { score: string; notes: string };
     const [entryEdits, setEntryEdits] = useState<Record<number, EditState>>({});
 
     async function loadEntries() {
@@ -88,10 +87,8 @@ export default function Entries() {
         const seeded: Record<number, EditState> = {};
         for (const en of data as Entry[]) {
             seeded[en.id] = {
-                score: en.score === null || en.score === undefined ? "" : String(en.score),
+                score: en.score == null ? "" : String(en.score),
                 notes: en.notes ?? "",
-                started_at: en.started_at ?? "",
-                finished_at: en.finished_at ?? "",
             };
         }
         setEntryEdits(seeded);
@@ -105,7 +102,6 @@ export default function Entries() {
                 wishlist: data.wishlist,
                 playing: data.playing,
                 played: data.played,
-                dropped: data.dropped,
             });
         } catch {
             setStats(null);
@@ -196,7 +192,7 @@ export default function Entries() {
     function updateEdit(id: number, patch: Partial<EditState>) {
         setEntryEdits((prev) => ({
             ...prev,
-            [id]: { ...(prev[id] ?? { score: "", notes: "", started_at: "", finished_at: "" }), ...patch },
+            [id]: { ...(prev[id] ?? { score: "", notes: "" }), ...patch },
         }));
     }
 
@@ -206,10 +202,8 @@ export default function Entries() {
         setEntryEdits((prev) => ({
             ...prev,
             [id]: {
-                score: en.score === null || en.score === undefined ? "" : String(en.score),
+                score: en.score == null ? "" : String(en.score),
                 notes: en.notes ?? "",
-                started_at: en.started_at ?? "",
-                finished_at: en.finished_at ?? "",
             },
         }));
     }
@@ -228,15 +222,8 @@ export default function Entries() {
             score = Math.min(10, Math.max(0, Math.round(n)));
         }
 
-        const started_at = edit.started_at.trim() === "" ? null : edit.started_at.trim();
-        const finished_at = edit.finished_at.trim() === "" ? null : edit.finished_at.trim();
-        if (started_at && finished_at && finished_at < started_at) {
-            setMsg("Finish date cannot be before start date.");
-            return;
-        }
-
         try {
-            await api.patch(`/entries/${id}/`, { score, notes: edit.notes, started_at, finished_at });
+            await api.patch(`/entries/${id}/`, { score, notes: edit.notes });
             setMsg("Saved!");
             refresh();
         } catch (err: any) {
@@ -283,13 +270,12 @@ export default function Entries() {
                         ["Wishlist", "WISHLIST"],
                         ["Playing", "PLAYING"],
                         ["Played", "PLAYED"],
-                        ["Dropped", "DROPPED"],
                     ] as const).map(([label, key]) => (
                         <button
                             key={key}
                             type="button"
-                            onClick={() => setFilter(key as Status)}
-                            className={`tile ${filter === key ? TILE_ACTIVE[key as Status] : ""}`}
+                            onClick={() => setFilter(key as Exclude<Status, "DROPPED">)}
+                            className={`tile ${filter === key ? TILE_ACTIVE[key as Exclude<Status, "DROPPED">] : ""}`}
                             title={`Show ${label.toLowerCase()} entries`}
                         >
                             <div className="stat-label">{label}</div>
@@ -297,7 +283,6 @@ export default function Entries() {
                                 {key === "WISHLIST" && stats.wishlist}
                                 {key === "PLAYING" && stats.playing}
                                 {key === "PLAYED" && stats.played}
-                                {key === "DROPPED" && stats.dropped}
                             </div>
                         </button>
                     ))}
@@ -354,7 +339,7 @@ export default function Entries() {
                     )}
                 </div>
 
-                <select value={status} onChange={(e) => setStatus(e.target.value as Status)} className="w-[160px]">
+                <select value={status} onChange={(e) => setStatus(e.target.value as Exclude<Status, "DROPPED">)} className="w-[160px]">
                     {STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
                 </select>
 
@@ -410,11 +395,11 @@ export default function Entries() {
             ) : (
                 <ul className="list-none p-0 mt-3">
                     {filteredEntries.map((en) => {
-                        const edit = entryEdits[en.id] ?? { score: "", notes: "", started_at: "", finished_at: "" };
+                        const edit = entryEdits[en.id] ?? { score: "", notes: "" };
                         return (
                             <li key={en.id} className="card p-3 mb-3">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
+                                    <Link to={`/game/${en.game.id}`} className="flex items-center gap-3 group">
                                         {en.game.cover_url ? (
                                             <img
                                                 src={en.game.cover_url}
@@ -426,12 +411,12 @@ export default function Entries() {
                                             />
                                         ) : null}
                                         <div>
-                                            <div className="font-semibold">{en.game.title}</div>
+                                            <div className="font-semibold group-hover:underline">{en.game.title}</div>
                                             <div className="text-xs flex items-center gap-2">
                                                 <span className="muted">Status:</span> <StatusBadge s={en.status} />
                                             </div>
                                         </div>
-                                    </div>
+                                    </Link>
 
                                     <div className="flex gap-2">
                                         <select value={en.status} onChange={(e) => updateStatus(en.id, e.target.value as Status)} className="w-[160px]">
@@ -441,7 +426,7 @@ export default function Entries() {
                                     </div>
                                 </div>
 
-                                <div className="mt-3 grid grid-cols-[110px_1fr_140px_140px_auto] gap-2 items-start">
+                                <div className="mt-3 grid grid-cols-[110px_1fr_auto] gap-2 items-start">
                                     <div>
                                         <label className="text-xs muted">Score (0–10)</label>
                                         <input
@@ -465,36 +450,6 @@ export default function Entries() {
                                             placeholder="What did you think?"
                                             className="w-full resize-y"
                                         />
-                                    </div>
-
-                                    <div>
-                                        <label className="text-xs muted">Started</label>
-                                        <input
-                                            type="date"
-                                            value={edit.started_at}
-                                            onChange={(e) => updateEdit(en.id, { started_at: e.target.value })}
-                                            className="w-[130px]"
-                                        />
-                                        {edit.started_at && (
-                                            <button type="button" className="mt-1" onClick={() => updateEdit(en.id, { started_at: "" })}>
-                                                Clear
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    <div>
-                                        <label className="text-xs muted">Finished</label>
-                                        <input
-                                            type="date"
-                                            value={edit.finished_at}
-                                            onChange={(e) => updateEdit(en.id, { finished_at: e.target.value })}
-                                            className="w-[130px]"
-                                        />
-                                        {edit.finished_at && (
-                                            <button type="button" className="mt-1" onClick={() => updateEdit(en.id, { finished_at: "" })}>
-                                                Clear
-                                            </button>
-                                        )}
                                     </div>
 
                                     <div className="flex gap-2 items-end justify-end">

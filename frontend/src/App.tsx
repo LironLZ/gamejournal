@@ -12,7 +12,6 @@ import ChooseUsername from "./pages/ChooseUsername";
 import AvatarSettings from "./pages/AvatarSettings";
 import Feed from "./pages/Feed";
 import Landing from "./pages/Landing";
-import Friends from "./pages/Friends";
 import Wishlist from "./pages/Wishlist"; // NEW
 
 const enableRegister = import.meta.env.VITE_ENABLE_REGISTER === "true";
@@ -116,9 +115,12 @@ export default function App() {
     <div className="min-h-screen">
       <nav className="sticky top-0 z-10 border-b bg-white/70 backdrop-blur dark:bg-zinc-900/70 dark:border-zinc-800">
         <div className="max-w-[960px] mx-auto px-3 h-12 flex items-center gap-4">
-          <Link className="nav-link" to="/">
-            Home
-          </Link>
+          {/* Hide Home when logged in */}
+          {!authed && (
+            <Link className="nav-link" to="/">
+              Home
+            </Link>
+          )}
           <Link className="nav-link" to="/discover">
             Discover
           </Link>
@@ -131,9 +133,7 @@ export default function App() {
               <Link className="nav-link" to="/feed">
                 Feed
               </Link>
-              <Link className="nav-link" to="/friends">
-                Friends
-              </Link>
+              {/* Friends merged into Feed -> removed from navbar */}
               <Link className="nav-link" to="/wishlist">
                 Wishlist
               </Link>
@@ -152,7 +152,8 @@ export default function App() {
                   />
                 ) : null}
                 <span className="text-sm opacity-80">
-                  Hello{username ? (
+                  Hello
+                  {username ? (
                     <>
                       ,&nbsp;<b>{username}</b>
                     </>
@@ -177,8 +178,14 @@ export default function App() {
               </>
             ) : (
               <>
-                {enableRegister && <Link className="nav-link" to="/register">Register</Link>}
-                <Link className="nav-link" to="/login">Login</Link>
+                {enableRegister && (
+                  <Link className="nav-link" to="/register">
+                    Register
+                  </Link>
+                )}
+                <Link className="nav-link" to="/login">
+                  Login
+                </Link>
               </>
             )}
           </div>
@@ -201,13 +208,50 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
 
         {/* Protected pages */}
-        <Route path="/setup/username" element={<ProtectedRoute><ChooseUsername /></ProtectedRoute>} />
-        <Route path="/entries" element={<ProtectedRoute><Entries /></ProtectedRoute>} />
-        <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
-        <Route path="/feed" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
-        <Route path="/settings/profile" element={<ProtectedRoute><AvatarSettings /></ProtectedRoute>} />
-        <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
-        <Route path="/friends/:username" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
+        <Route
+          path="/setup/username"
+          element={
+            <ProtectedRoute>
+              <ChooseUsername />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/entries"
+          element={
+            <ProtectedRoute>
+              <Entries />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/wishlist"
+          element={
+            <ProtectedRoute>
+              <Wishlist />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/feed"
+          element={
+            <ProtectedRoute>
+              <Feed />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/profile"
+          element={
+            <ProtectedRoute>
+              <AvatarSettings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Friends merged into Feed – keep routes as redirects for compatibility */}
+        <Route path="/friends" element={<Navigate to="/feed" replace />} />
+        <Route path="/friends/:username" element={<Navigate to="/feed" replace />} />
 
         {/* 404 */}
         <Route path="*" element={<div className="p-6">Not found</div>} />

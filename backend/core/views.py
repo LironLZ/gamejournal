@@ -168,10 +168,10 @@ def my_stats(request):
     qs = GameEntry.objects.filter(user=request.user)
     data = {
         "total": qs.count(),
-        "wishlisted": qs.filter(status=GameEntry.Status.WISHLIST).count(),  # unified key
+        "wishlist": qs.filter(status=GameEntry.Status.WISHLIST).count(),  # normalized key
         "playing": qs.filter(status=GameEntry.Status.PLAYING).count(),
         "played": qs.filter(status=GameEntry.Status.PLAYED).count(),
-        "dropped": qs.filter(status=GameEntry.Status.DROPPED).count(),
+        # no "dropped" anymore
     }
     return Response(data)
 
@@ -197,7 +197,6 @@ def public_profile(request, username: str):
         wishlisted=Count("id", filter=Q(status=GameEntry.Status.WISHLIST)),
         playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
         played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),
-        dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
     )
     # Frontend expects `wishlist` key; map for compatibility.
     stats = {
@@ -205,7 +204,6 @@ def public_profile(request, username: str):
         "wishlist": stats_raw.get("wishlisted", 0),
         "playing": stats_raw.get("playing", 0),
         "played": stats_raw.get("played", 0),
-        "dropped": stats_raw.get("dropped", 0),
     }
 
     # Avatar
@@ -251,7 +249,7 @@ def public_profile(request, username: str):
             "preview": friends_preview,
         },
         "entries": entries,
-        "favorites": favorites,  # ← included
+        "favorites": favorites,
     })
 
 
@@ -428,19 +426,22 @@ def my_favorites(request):
     GET -> [{id,title,cover_url,release_year}]
     PUT -> {"items":[game_id,...]}  # keeps order; max 9
     """
-    if request.method == "GET":
+    def serialize_list(user):
         favs = (
             FavoriteGame.objects
-            .filter(user=request.user)
+            .filter(user=user)
             .select_related("game")
             .order_by("position", "id")[:9]
         )
-        return Response([{
+        return [{
             "id": f.game.id,
             "title": f.game.title,
             "cover_url": getattr(f.game, "cover_url", None),
             "release_year": f.game.release_year,
-        } for f in favs])
+        } for f in favs]
+
+    if request.method == "GET":
+        return Response(serialize_list(request.user))
 
     items = request.data.get("items")
     if not isinstance(items, list):
@@ -465,7 +466,8 @@ def my_favorites(request):
         if g:
             FavoriteGame.objects.create(user=request.user, game=g, position=pos)
 
-    return Response({"ok": True, "count": len(ids)})
+    # Return the updated list (so the UI can refresh immediately)
+    return Response(serialize_list(request.user))
 
 
 # ---------- Permissions ----------
@@ -700,7 +702,6 @@ def public_game_detail(request, game_id: int):
         wishlisted=Count("id", filter=Q(status=GameEntry.Status.WISHLIST)),
         playing=Count("id", filter=Q(status=GameEntry.Status.PLAYING)),
         played=Count("id", filter=Q(status=GameEntry.Status.PLAYED)),
-        dropped=Count("id", filter=Q(status=GameEntry.Status.DROPPED)),
     )
 
     def build_avatar(u):
