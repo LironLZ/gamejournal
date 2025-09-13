@@ -4,6 +4,7 @@ A lightweight game tracker with a social layer. Log what you’re playing, rate 
 
 This repo contains a **Django REST API** (backend) and a **React + Vite + TypeScript** app (frontend) styled with **Tailwind**.
 
+**Live Demo:** [gamejournal.online](https://gamejournal.online)
 ---
 
 ## Highlights
