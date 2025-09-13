@@ -1,3 +1,4 @@
+// src/pages/Feed.tsx
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api";
@@ -79,6 +80,7 @@ function ActivityRow({ a }: { a: Activity }) {
 }
 
 export default function Feed() {
+    // activity feed
     const [items, setItems] = useState<Activity[]>([]);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState("");
@@ -90,28 +92,36 @@ export default function Feed() {
 
     // friends + search (merged Friends page)
     const [me, setMe] = useState<string>("");
-    const [friends, setFriends] = useState<MiniUser[]>([]);
+    const [friends, setFriends] = useState<MiniUser[] | null>(null); // null = loading
     const [q, setQ] = useState("");
     const [searchResults, setSearchResults] = useState<MiniUser[]>([]);
 
+    // Load identity + friends (use the correct endpoint: /auth/whoami/)
     useEffect(() => {
         let alive = true;
         (async () => {
             try {
-                const { data } = await api.get<{ user: string }>("/whoami/");
+                const { data } = await api.get<{ user?: string }>("/auth/whoami/");
                 if (!alive) return;
-                setMe(data.user);
-                // public friends list of self -> minis
-                const fr = await api.get<{ results: MiniUser[] }>(`/friends/${encodeURIComponent(data.user)}/`);
-                if (!alive) return;
-                setFriends(Array.isArray(fr.data.results) ? fr.data.results : []);
+                const u = (data.user || "").trim();
+                setMe(u);
+
+                if (u) {
+                    const fr = await api.get<{ results: MiniUser[] }>(`/friends/${encodeURIComponent(u)}/`);
+                    if (!alive) return;
+                    setFriends(Array.isArray(fr.data?.results) ? fr.data.results : []);
+                } else {
+                    setFriends([]);
+                }
             } catch {
-                // ignore
+                if (!alive) return;
+                setFriends([]);
             }
         })();
         return () => { alive = false; };
     }, []);
 
+    // Load activity pages
     useEffect(() => {
         let alive = true;
         (async () => {
@@ -132,6 +142,7 @@ export default function Feed() {
         return () => { alive = false; };
     }, [offset]);
 
+    // Infinite scroll
     useEffect(() => {
         if (!hasMore || loading) return;
         const el = loadMoreRef.current;
@@ -177,8 +188,10 @@ export default function Feed() {
                             <ul className="list-none p-0 m-0 mt-2">
                                 {searchResults.map((u) => (
                                     <li key={u.id} className="py-1 flex items-center gap-2">
-                                        <img className="w-6 h-6 rounded-full border"
-                                            src={u.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(u.username)}`} />
+                                        <img
+                                            className="w-6 h-6 rounded-full border"
+                                            src={u.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(u.username)}`}
+                                        />
                                         <Link className="link" to={`/u/${encodeURIComponent(u.username)}`}>{u.username}</Link>
                                     </li>
                                 ))}
@@ -187,15 +200,21 @@ export default function Feed() {
                     </div>
 
                     <div className="card p-3">
-                        <div className="font-semibold mb-2">Friends {friends.length ? `(${friends.length})` : ""}</div>
-                        {friends.length === 0 ? (
+                        <div className="font-semibold mb-2">
+                            Friends {friends && friends.length ? `(${friends.length})` : ""}
+                        </div>
+                        {friends === null ? (
+                            <div className="muted text-sm">Loading…</div>
+                        ) : friends.length === 0 ? (
                             <div className="muted text-sm">No friends yet.</div>
                         ) : (
                             <ul className="list-none p-0 m-0">
                                 {friends.map((f) => (
                                     <li key={f.id} className="py-1 flex items-center gap-2">
-                                        <img className="w-6 h-6 rounded-full border"
-                                            src={f.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(f.username)}`} />
+                                        <img
+                                            className="w-6 h-6 rounded-full border"
+                                            src={f.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(f.username)}`}
+                                        />
                                         <Link className="link" to={`/u/${encodeURIComponent(f.username)}`}>{f.username}</Link>
                                     </li>
                                 ))}
@@ -226,7 +245,9 @@ export default function Feed() {
                     </div>
 
                     {hasMore && <div ref={loadMoreRef} className="h-8" />}
-                    {!hasMore && items.length > 0 && <div className="muted text-center text-sm mt-3">You’re all caught up.</div>}
+                    {!hasMore && items.length > 0 && (
+                        <div className="muted text-center text-sm mt-3">You’re all caught up.</div>
+                    )}
                 </div>
             </div>
         </div>
