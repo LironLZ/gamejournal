@@ -28,6 +28,7 @@ type PublicGame = {
 type ProfilePayload =
     | {
         user: { id: number; username: string; joined: string; avatar_url?: string | null };
+        // Backend maps wishlisted -> wishlist
         stats: { total: number; wishlist: number; playing: number; played: number };
         friends: { count: number; preview: Mini[] };
         entries: Entry[];
@@ -100,7 +101,7 @@ export default function PublicProfile() {
         };
     }, [username]);
 
-    // Load friendship status
+    // Load friendship status (only if authed)
     async function fetchRel() {
         if (!authed || !username) return;
         try {
@@ -108,7 +109,7 @@ export default function PublicProfile() {
             const r = await api.get<RelShape>(`/friends/status/${encodeURIComponent(username)}/`);
             setRel(r.data);
         } catch {
-            setRel(null);
+            setRel(null); // keep UI usable
         } finally {
             setRelLoading(false);
         }
@@ -168,14 +169,9 @@ export default function PublicProfile() {
     // --- Friend actions ---
     function extractServerError(e: any): string {
         const data = e?.response?.data;
-        if (!data) return "Could not send friend request.";
+        if (!data) return "Request failed.";
         if (typeof data === "string") return data;
-        return (
-            data?.detail ||
-            data?.error ||
-            data?.to_user?.join?.(" ") ||
-            JSON.stringify(data)
-        );
+        return data?.detail || data?.error || JSON.stringify(data);
     }
 
     async function sendRequest() {
@@ -184,29 +180,24 @@ export default function PublicProfile() {
         setRel({ status: "OUTGOING", request_id: null });
         try {
             setBusy(true);
-            // 1) Try with numeric id
-            const resp = await api.post(`/friends/requests/`, { to_user: user.id });
+            // ✅ Backend expects "to_user_id"
+            const resp = await api.post(`/friends/requests/`, { to_user_id: user.id });
             const reqId = resp?.data?.id ?? null;
             setRel({ status: "OUTGOING", request_id: reqId });
-        } catch (e1: any) {
-            // 2) If 400, retry once with username (serializer might expect a slug)
-            const status = e1?.response?.status;
-            if (status === 400) {
-                try {
-                    const resp2 = await api.post(`/friends/requests/`, { to_user: user.username });
-                    const reqId2 = resp2?.data?.id ?? null;
-                    setRel({ status: "OUTGOING", request_id: reqId2 });
-                    setBusy(false);
-                    return;
-                } catch (e2: any) {
-                    setRel({ status: "NONE", request_id: null }); // rollback
-                    alert(extractServerError(e2));
-                    setBusy(false);
-                    return;
-                }
+            if (reqId == null) {
+                // Some serializers may not return id; ensure button gets a real id
+                await fetchRel();
             }
-            setRel({ status: "NONE", request_id: null }); // rollback
-            alert(extractServerError(e1));
+        } catch (e: any) {
+            // Handle "pending already exists" case gracefully
+            const status = e?.response?.status;
+            const reqId = e?.response?.data?.request_id ?? null;
+            if (status === 409 && reqId) {
+                setRel({ status: "OUTGOING", request_id: reqId });
+            } else {
+                setRel({ status: "NONE", request_id: null }); // rollback
+                alert(extractServerError(e));
+            }
         } finally {
             setBusy(false);
         }
@@ -287,7 +278,7 @@ export default function PublicProfile() {
             );
         }
 
-        const status: FriendshipStatus = rel?.status ?? (relLoading ? "NONE" : "NONE");
+        const status: FriendshipStatus = rel?.status ?? "NONE";
 
         if (relLoading && !rel) {
             return (
@@ -330,8 +321,9 @@ export default function PublicProfile() {
                         <span className="text-sm opacity-80">Request sent</span>
                         <button
                             onClick={cancelRequest}
-                            disabled={busy}
+                            disabled={busy || !rel?.request_id}
                             className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-60"
+                            title={!rel?.request_id ? "Please wait…" : "Cancel friend request"}
                         >
                             Cancel
                         </button>
