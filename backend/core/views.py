@@ -3,6 +3,7 @@ import os
 import re
 import requests
 
+from django.db import IntegrityError
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
@@ -584,24 +585,57 @@ class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         s = FriendRequestSerializer(data=request.data, context={"request": request})
         s.is_valid(raise_exception=True)
         to_user = s.validated_data["to_user"]
+
         if to_user == request.user:
             return Response({"detail": "You can't friend yourself."}, status=400)
 
         if _are_friends(request.user, to_user):
             return Response({"detail": "Already friends."}, status=409)
 
-        # prevent duplicate pending in either direction
-        existing = FriendRequest.objects.filter(
+        # Any existing PENDING either way → conflict
+        existing_pending = FriendRequest.objects.filter(
             Q(from_user=request.user, to_user=to_user, status=FriendRequest.Status.PENDING) |
             Q(from_user=to_user, to_user=request.user, status=FriendRequest.Status.PENDING)
         ).first()
-        if existing:
+        if existing_pending:
             return Response(
-                {"detail": "A pending request already exists.", "request_id": existing.id},
+                {"detail": "A pending request already exists.", "request_id": existing_pending.id},
                 status=409,
             )
 
-        fr = FriendRequest.objects.create(from_user=request.user, to_user=to_user)
+        # If an older request exists in the same direction and is non-pending, re-open it.
+        previous = FriendRequest.objects.filter(
+            from_user=request.user, to_user=to_user
+        ).order_by("-id").first()
+        if previous:
+            if previous.status in (FriendRequest.Status.CANCELED, FriendRequest.Status.DECLINED):
+                previous.status = FriendRequest.Status.PENDING
+                previous.responded_at = None
+                previous.save(update_fields=["status", "responded_at"])
+                return Response(
+                    FriendRequestSerializer(previous, context={"request": request}).data,
+                    status=status.HTTP_200_OK,
+                )
+            if previous.status == FriendRequest.Status.ACCEPTED:
+                _ensure_friendship(request.user, to_user)
+                return Response({"detail": "Already friends."}, status=409)
+
+        # Otherwise, create a fresh one (guard against race with a safety net)
+        try:
+            fr = FriendRequest.objects.create(from_user=request.user, to_user=to_user)
+        except IntegrityError:
+            # Fall back to re-opening in case a unique constraint blocked us
+            previous = FriendRequest.objects.filter(
+                from_user=request.user, to_user=to_user
+            ).order_by("-id").first()
+            if previous and previous.status in (FriendRequest.Status.CANCELED, FriendRequest.Status.DECLINED):
+                previous.status = FriendRequest.Status.PENDING
+                previous.responded_at = None
+                previous.save(update_fields=["status", "responded_at"])
+                fr = previous
+            else:
+                raise
+
         return Response(
             FriendRequestSerializer(fr, context={"request": request}).data,
             status=201
@@ -637,6 +671,7 @@ class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         fr.responded_at = timezone.now()
         fr.save()
         return Response({"detail": "Friend request canceled."})
+
 
 
 class FriendsViewSet(viewsets.ViewSet):
