@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import api from "../api";
+import type React from "react";
 
 type Status = "WISHLIST" | "PLAYING" | "PLAYED" | "DROPPED";
 
@@ -35,6 +36,9 @@ type ProfilePayload =
     }
     | { detail: string };
 
+type FriendshipStatus = "SELF" | "FRIENDS" | "NONE" | "OUTGOING" | "INCOMING";
+type RelShape = { status: FriendshipStatus; request_id: number | null };
+
 const BADGE: Record<Status, string> = {
     PLAYING:
         "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-700",
@@ -68,6 +72,13 @@ export default function PublicProfile() {
     const [err, setErr] = useState("");
     const [filter, setFilter] = useState<"ALL" | Exclude<Status, "DROPPED">>("ALL");
 
+    // friendship state for header actions
+    const [rel, setRel] = useState<RelShape | null>(null);
+    const [relLoading, setRelLoading] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const authed = !!localStorage.getItem("access");
+
+    // Load profile payload
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -89,6 +100,26 @@ export default function PublicProfile() {
             mounted = false;
         };
     }, [username]);
+
+    // Load friendship status (only if authed and not self)
+    async function fetchRel() {
+        if (!authed || !username) return;
+        try {
+            setRelLoading(true);
+            const r = await api.get<RelShape>(`/friends/status/${encodeURIComponent(username)}/`);
+            setRel(r.data);
+        } catch {
+            // ignore (unauthorized or endpoint missing)
+            setRel(null);
+        } finally {
+            setRelLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        fetchRel();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [username, authed]);
 
     if (loading) {
         return (
@@ -136,6 +167,144 @@ export default function PublicProfile() {
     const avatar =
         user.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(user.username)}`;
 
+    // --- Friend actions ---
+    async function sendRequest() {
+        if (!authed || busy) return;
+        try {
+            setBusy(true);
+            const resp = await api.post(`/friends/requests/`, { to_user: user.id });
+            const reqId = resp?.data?.id ?? null;
+            setRel({ status: "OUTGOING", request_id: reqId });
+        } catch (e: any) {
+            // If server says a pending request already exists, adopt that request_id
+            const msg = e?.response?.data;
+            if (msg?.request_id) {
+                setRel({ status: "OUTGOING", request_id: msg.request_id });
+            }
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function cancelRequest() {
+        if (!rel?.request_id || busy) return;
+        try {
+            setBusy(true);
+            await api.post(`/friends/requests/${rel.request_id}/cancel/`);
+            setRel({ status: "NONE", request_id: null });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function acceptRequest() {
+        if (!rel?.request_id || busy) return;
+        try {
+            setBusy(true);
+            await api.post(`/friends/requests/${rel.request_id}/accept/`);
+            setRel({ status: "FRIENDS", request_id: null });
+            // optimistic bump
+            setData((prev) => {
+                if (!prev || "detail" in prev) return prev;
+                return { ...prev, friends: { ...prev.friends, count: (prev.friends?.count || 0) + 1 } };
+            });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function declineRequest() {
+        if (!rel?.request_id || busy) return;
+        try {
+            setBusy(true);
+            await api.post(`/friends/requests/${rel.request_id}/decline/`);
+            setRel({ status: "NONE", request_id: null });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    function FriendAction() {
+        if (!authed) {
+            return (
+                <Link
+                    to="/login"
+                    className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
+                >
+                    Log in to add friend
+                </Link>
+            );
+        }
+        if (relLoading || !rel) {
+            return (
+                <button
+                    className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm opacity-60"
+                    disabled
+                >
+                    …
+                </button>
+            );
+        }
+        switch (rel.status) {
+            case "SELF":
+                return null;
+            case "FRIENDS":
+                return (
+                    <button
+                        className="px-3 py-1.5 rounded-lg border text-sm bg-emerald-600 text-white border-emerald-700 dark:border-emerald-700 cursor-default"
+                        disabled
+                        title="You are friends"
+                    >
+                        Friends ✓
+                    </button>
+                );
+            case "NONE":
+                return (
+                    <button
+                        onClick={sendRequest}
+                        disabled={busy}
+                        className="px-3 py-1.5 rounded-lg border text-sm bg-indigo-600 text-white border-indigo-700 hover:opacity-90 disabled:opacity-60"
+                    >
+                        Add friend
+                    </button>
+                );
+            case "OUTGOING":
+                return (
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm opacity-80">Request sent</span>
+                        <button
+                            onClick={cancelRequest}
+                            disabled={busy}
+                            className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-60"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                );
+            case "INCOMING":
+                return (
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={acceptRequest}
+                            disabled={busy}
+                            className="px-3 py-1.5 rounded-lg border text-sm bg-emerald-600 text-white border-emerald-700 hover:opacity-90 disabled:opacity-60"
+                        >
+                            Accept
+                        </button>
+                        <button
+                            onClick={declineRequest}
+                            disabled={busy}
+                            className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-60"
+                        >
+                            Decline
+                        </button>
+                    </div>
+                );
+            default:
+                return null;
+        }
+    }
+
     return (
         <div className="container-page">
             {/* Header */}
@@ -150,6 +319,11 @@ export default function PublicProfile() {
                             Joined <b>{joinedPretty}</b>
                         </div>
                     </div>
+                </div>
+
+                {/* Friend action(s) */}
+                <div className="mt-1">
+                    <FriendAction />
                 </div>
             </div>
 
@@ -255,7 +429,9 @@ export default function PublicProfile() {
                                         src={en.game.cover_url}
                                         alt={en.game.title}
                                         className="w-[72px] h-[72px] object-cover rounded-lg border border-gray-200 dark:border-zinc-700"
-                                        onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+                                        onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                                            e.currentTarget.style.display = "none";
+                                        }}
                                     />
                                 ) : null}
                                 <div className="flex-1 min-w-0">
