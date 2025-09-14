@@ -97,10 +97,7 @@ else:
 
 # Preflight/credentials
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_HEADERS = list(os.getenv("CORS_ALLOW_HEADERS", "").split(",")) or [
-    "authorization", "content-type", "x-csrftoken", "accept", "origin"
-]
-CORS_EXPOSE_HEADERS = ["Content-Type", "Authorization"]
+
 
 # CSRF must use scheme+host
 CSRF_TRUSTED_ORIGINS = [
