@@ -7,6 +7,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views, views_public, views_auth
 from .views import FriendRequestViewSet, FriendsViewSet
 
+# Top-level routers
 router = DefaultRouter()
 router.register(r'entries', views.GameEntryViewSet, basename='entry')
 router.register(r'games', views.GameViewSet, basename='game')
@@ -20,12 +21,13 @@ nested = routers.NestedDefaultRouter(router, r'entries', lookup='entry')
 nested.register(r'sessions', views.PlaySessionViewSet, basename='entry-sessions')
 
 urlpatterns = [
+    # health
     path('ping/', views.ping, name='ping'),
 
-    # SSO (always on)
+    # --- Auth / SSO ---
+    # Google SSO login endpoint (always on)
     path('auth/google/', views_auth.google_login, name='google-login'),
-
-    # Always expose refresh for SSO token renewal
+    # Refresh JWT (used by SSO flow too)
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     # account
@@ -33,12 +35,12 @@ urlpatterns = [
     path('account/username/', views.update_username, name='update-username'),
     path('account/avatar/', views.upload_avatar, name='upload-avatar'),
 
-    # stats
+    # stats (private)
     path('stats/', views.my_stats, name='my-stats'),
 
-    # RAWG
+    # RAWG (search/import)
     path('search/games/', views.search_games_external, name='search-games'),
-    path('import/game/',  views.import_game,           name='import-game'),
+    path('import/game/', views.import_game, name='import-game'),
 
     # favorites (me)
     path('me/favorites/', views.my_favorites, name='my-favorites'),
@@ -49,21 +51,22 @@ urlpatterns = [
     # user search/browse (used by Discover People)
     path('users/', views.search_users, name='search-users'),
 
-    # simple friend relationship probe
+    # simple friend relationship probe (for profile header button)
     path('friends/status/<str:username>/', views.friendship_status, name='friendship-status'),
 
-    # resources
+    # resources (routers)
     path('', include(router.urls)),
     path('', include(nested.urls)),
 
-    # public
+    # public read-only
     path('users/<str:username>/', views.public_profile, name='public-profile'),
     path('public/games/', views_public.discover_games, name='discover-games'),
     path('public/games/<int:game_id>/', views.public_game_detail, name='public-game-details'),
 ]
 
+# Optional password-login endpoints (behind feature flag)
 if getattr(settings, "ALLOW_PASSWORD_LOGIN", False):
     urlpatterns += [
         path('auth/register/', views.register, name='register'),
-        path('auth/login/',    TokenObtainPairView.as_view(), name='token_obtain_pair'),
+        path('auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     ]
