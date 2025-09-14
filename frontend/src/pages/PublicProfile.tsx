@@ -101,7 +101,7 @@ export default function PublicProfile() {
         };
     }, [username]);
 
-    // Load friendship status (only if authed and not self)
+    // Load friendship status (only if authed)
     async function fetchRel() {
         if (!authed || !username) return;
         try {
@@ -109,8 +109,7 @@ export default function PublicProfile() {
             const r = await api.get<RelShape>(`/friends/status/${encodeURIComponent(username)}/`);
             setRel(r.data);
         } catch {
-            // ignore (unauthorized or endpoint missing)
-            setRel(null);
+            setRel(null); // keep UI usable
         } finally {
             setRelLoading(false);
         }
@@ -170,6 +169,8 @@ export default function PublicProfile() {
     // --- Friend actions ---
     async function sendRequest() {
         if (!authed || busy) return;
+        // Optimistic UI: flip immediately
+        setRel({ status: "OUTGOING", request_id: null });
         try {
             setBusy(true);
             const resp = await api.post(`/friends/requests/`, { to_user: user.id });
@@ -180,6 +181,10 @@ export default function PublicProfile() {
             const msg = e?.response?.data;
             if (msg?.request_id) {
                 setRel({ status: "OUTGOING", request_id: msg.request_id });
+            } else {
+                // rollback on hard error
+                setRel({ status: "NONE", request_id: null });
+                alert("Could not send friend request.");
             }
         } finally {
             setBusy(false);
@@ -192,6 +197,8 @@ export default function PublicProfile() {
             setBusy(true);
             await api.post(`/friends/requests/${rel.request_id}/cancel/`);
             setRel({ status: "NONE", request_id: null });
+        } catch {
+            alert("Failed to cancel request.");
         } finally {
             setBusy(false);
         }
@@ -208,6 +215,8 @@ export default function PublicProfile() {
                 if (!prev || "detail" in prev) return prev;
                 return { ...prev, friends: { ...prev.friends, count: (prev.friends?.count || 0) + 1 } };
             });
+        } catch {
+            alert("Failed to accept request.");
         } finally {
             setBusy(false);
         }
@@ -219,6 +228,28 @@ export default function PublicProfile() {
             setBusy(true);
             await api.post(`/friends/requests/${rel.request_id}/decline/`);
             setRel({ status: "NONE", request_id: null });
+        } catch {
+            alert("Failed to decline request.");
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function unfriend() {
+        if (busy) return;
+        const ok = confirm(`Remove ${user.username} from your friends?`);
+        if (!ok) return;
+        try {
+            setBusy(true);
+            await api.delete(`/friends/${encodeURIComponent(user.username)}/`);
+            setRel({ status: "NONE", request_id: null });
+            setData((prev) => {
+                if (!prev || "detail" in prev) return prev;
+                const nextCnt = Math.max(0, (prev.friends?.count || 1) - 1);
+                return { ...prev, friends: { ...prev.friends, count: nextCnt } };
+            });
+        } catch {
+            alert("Failed to unfriend.");
         } finally {
             setBusy(false);
         }
@@ -235,7 +266,11 @@ export default function PublicProfile() {
                 </Link>
             );
         }
-        if (relLoading || !rel) {
+
+        // If status is still loading or unknown, default to showing an actionable "Add friend"
+        const status: FriendshipStatus = rel?.status ?? "NONE";
+
+        if (relLoading && !rel) {
             return (
                 <button
                     className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm opacity-60"
@@ -245,15 +280,17 @@ export default function PublicProfile() {
                 </button>
             );
         }
-        switch (rel.status) {
+
+        switch (status) {
             case "SELF":
                 return null;
             case "FRIENDS":
                 return (
                     <button
-                        className="px-3 py-1.5 rounded-lg border text-sm bg-emerald-600 text-white border-emerald-700 dark:border-emerald-700 cursor-default"
-                        disabled
-                        title="You are friends"
+                        onClick={unfriend}
+                        disabled={busy}
+                        className="px-3 py-1.5 rounded-lg border text-sm bg-emerald-600 text-white border-emerald-700 hover:opacity-90 disabled:opacity-60"
+                        title="Click to unfriend"
                     >
                         Friends ✓
                     </button>
