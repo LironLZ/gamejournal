@@ -28,7 +28,6 @@ type PublicGame = {
 type ProfilePayload =
     | {
         user: { id: number; username: string; joined: string; avatar_url?: string | null };
-        // Backend maps wishlisted -> wishlist
         stats: { total: number; wishlist: number; playing: number; played: number };
         friends: { count: number; preview: Mini[] };
         entries: Entry[];
@@ -101,7 +100,7 @@ export default function PublicProfile() {
         };
     }, [username]);
 
-    // Load friendship status (only if authed)
+    // Load friendship status
     async function fetchRel() {
         if (!authed || !username) return;
         try {
@@ -109,7 +108,7 @@ export default function PublicProfile() {
             const r = await api.get<RelShape>(`/friends/status/${encodeURIComponent(username)}/`);
             setRel(r.data);
         } catch {
-            setRel(null); // keep UI usable
+            setRel(null);
         } finally {
             setRelLoading(false);
         }
@@ -167,25 +166,47 @@ export default function PublicProfile() {
         user.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(user.username)}`;
 
     // --- Friend actions ---
+    function extractServerError(e: any): string {
+        const data = e?.response?.data;
+        if (!data) return "Could not send friend request.";
+        if (typeof data === "string") return data;
+        return (
+            data?.detail ||
+            data?.error ||
+            data?.to_user?.join?.(" ") ||
+            JSON.stringify(data)
+        );
+    }
+
     async function sendRequest() {
         if (!authed || busy) return;
-        // Optimistic UI: flip immediately
+        // Optimistic UI
         setRel({ status: "OUTGOING", request_id: null });
         try {
             setBusy(true);
+            // 1) Try with numeric id
             const resp = await api.post(`/friends/requests/`, { to_user: user.id });
             const reqId = resp?.data?.id ?? null;
             setRel({ status: "OUTGOING", request_id: reqId });
-        } catch (e: any) {
-            // If server says a pending request already exists, adopt that request_id
-            const msg = e?.response?.data;
-            if (msg?.request_id) {
-                setRel({ status: "OUTGOING", request_id: msg.request_id });
-            } else {
-                // rollback on hard error
-                setRel({ status: "NONE", request_id: null });
-                alert("Could not send friend request.");
+        } catch (e1: any) {
+            // 2) If 400, retry once with username (serializer might expect a slug)
+            const status = e1?.response?.status;
+            if (status === 400) {
+                try {
+                    const resp2 = await api.post(`/friends/requests/`, { to_user: user.username });
+                    const reqId2 = resp2?.data?.id ?? null;
+                    setRel({ status: "OUTGOING", request_id: reqId2 });
+                    setBusy(false);
+                    return;
+                } catch (e2: any) {
+                    setRel({ status: "NONE", request_id: null }); // rollback
+                    alert(extractServerError(e2));
+                    setBusy(false);
+                    return;
+                }
             }
+            setRel({ status: "NONE", request_id: null }); // rollback
+            alert(extractServerError(e1));
         } finally {
             setBusy(false);
         }
@@ -197,8 +218,8 @@ export default function PublicProfile() {
             setBusy(true);
             await api.post(`/friends/requests/${rel.request_id}/cancel/`);
             setRel({ status: "NONE", request_id: null });
-        } catch {
-            alert("Failed to cancel request.");
+        } catch (e: any) {
+            alert(extractServerError(e));
         } finally {
             setBusy(false);
         }
@@ -210,13 +231,12 @@ export default function PublicProfile() {
             setBusy(true);
             await api.post(`/friends/requests/${rel.request_id}/accept/`);
             setRel({ status: "FRIENDS", request_id: null });
-            // optimistic bump
             setData((prev) => {
                 if (!prev || "detail" in prev) return prev;
                 return { ...prev, friends: { ...prev.friends, count: (prev.friends?.count || 0) + 1 } };
             });
-        } catch {
-            alert("Failed to accept request.");
+        } catch (e: any) {
+            alert(extractServerError(e));
         } finally {
             setBusy(false);
         }
@@ -228,8 +248,8 @@ export default function PublicProfile() {
             setBusy(true);
             await api.post(`/friends/requests/${rel.request_id}/decline/`);
             setRel({ status: "NONE", request_id: null });
-        } catch {
-            alert("Failed to decline request.");
+        } catch (e: any) {
+            alert(extractServerError(e));
         } finally {
             setBusy(false);
         }
@@ -248,8 +268,8 @@ export default function PublicProfile() {
                 const nextCnt = Math.max(0, (prev.friends?.count || 1) - 1);
                 return { ...prev, friends: { ...prev.friends, count: nextCnt } };
             });
-        } catch {
-            alert("Failed to unfriend.");
+        } catch (e: any) {
+            alert(extractServerError(e));
         } finally {
             setBusy(false);
         }
@@ -267,8 +287,7 @@ export default function PublicProfile() {
             );
         }
 
-        // If status is still loading or unknown, default to showing an actionable "Add friend"
-        const status: FriendshipStatus = rel?.status ?? "NONE";
+        const status: FriendshipStatus = rel?.status ?? (relLoading ? "NONE" : "NONE");
 
         if (relLoading && !rel) {
             return (
