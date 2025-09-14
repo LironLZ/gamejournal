@@ -103,12 +103,18 @@ def whoami(request):
     """Return basic identity + avatar URL for navbar/settings."""
     avatar_url = None
     prof = getattr(request.user, "profile", None)
-    if prof and prof.avatar:
+    if prof and getattr(prof, "avatar", None):
         try:
             avatar_url = request.build_absolute_uri(prof.avatar.url)
         except Exception:
             avatar_url = None
-    return Response({"user": request.user.username, "avatar_url": avatar_url})
+
+    # Provide both keys for compatibility; use username as the canonical id
+    return Response({
+        "user": request.user.username,       # legacy
+        "username": request.user.username,   # canonical
+        "avatar_url": avatar_url,
+    })
 
 
 # ---------- Account: change username ----------

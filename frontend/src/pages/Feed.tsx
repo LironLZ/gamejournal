@@ -13,7 +13,7 @@ import api, {
 
 type Activity = {
     id: number;
-    actor: string; // username
+    actor: string; // canonical username for links
     actor_avatar_url?: string | null;
     verb: "RATED" | "STATUS" | "SESSION";
     status?: "PLANNING" | "PLAYING" | "PLAYED" | "DROPPED" | "COMPLETED" | null;
@@ -75,7 +75,9 @@ function ActivityRow({ a }: { a: Activity }) {
                 </Link>
                 <div className="flex-1 min-w-0">
                     <div className="truncate">
-                        <Link className="font-semibold link" to={`/u/${encodeURIComponent(a.actor)}`}>{a.actor}</Link>{" "}
+                        <Link className="font-semibold link" to={`/u/${encodeURIComponent(a.actor)}`}>
+                            {a.actor}
+                        </Link>{" "}
                         {text}
                     </div>
                     <div className="text-xs muted mt-0.5">{timeAgo(a.created_at)}</div>
@@ -109,9 +111,9 @@ export default function Feed() {
         let alive = true;
         (async () => {
             try {
-                const { data } = await api.get<{ user?: string }>("/auth/whoami/");
+                const { data } = await api.get<{ user?: string; username?: string }>("/auth/whoami/");
                 if (!alive) return;
-                const u = (data.user || "").trim();
+                const u = (data.username || data.user || "").trim();
                 setMe(u);
 
                 if (u) {
@@ -135,7 +137,9 @@ export default function Feed() {
                 setIncoming([]);
             }
         })();
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, []);
 
     // Load activity pages
@@ -156,7 +160,9 @@ export default function Feed() {
                 if (alive) setLoading(false);
             }
         })();
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, [offset]);
 
     // Infinite scroll
@@ -165,10 +171,13 @@ export default function Feed() {
         const el = loadMoreRef.current;
         if (!el) return;
 
-        const io = new IntersectionObserver((entries) => {
-            const first = entries[0];
-            if (first?.isIntersecting) setOffset((o) => o + limit);
-        }, { rootMargin: "200px" });
+        const io = new IntersectionObserver(
+            (entries) => {
+                const first = entries[0];
+                if (first?.isIntersecting) setOffset((o) => o + limit);
+            },
+            { rootMargin: "200px" }
+        );
 
         io.observe(el);
         return () => io.disconnect();
@@ -176,7 +185,10 @@ export default function Feed() {
 
     async function doSearch() {
         const term = q.trim();
-        if (term.length < 2) { setSearchResults([]); return; }
+        if (term.length < 2) {
+            setSearchResults([]);
+            return;
+        }
         try {
             const results = await searchUsers(term); // backend uses icontains → case-insensitive
             setSearchResults(Array.isArray(results) ? results : []);
@@ -232,9 +244,13 @@ export default function Feed() {
                                 placeholder="Search by username…"
                                 value={q}
                                 onChange={(e) => setQ(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === "Enter") doSearch(); }}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") doSearch();
+                                }}
                             />
-                            <button className="btn" onClick={doSearch}>Search</button>
+                            <button className="btn" onClick={doSearch}>
+                                Search
+                            </button>
                         </div>
                         {searchResults.length > 0 && (
                             <ul className="list-none p-0 m-0 mt-2">
@@ -242,9 +258,16 @@ export default function Feed() {
                                     <li key={u.id} className="py-1 flex items-center gap-2">
                                         <img
                                             className="w-6 h-6 rounded-full border"
-                                            src={u.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(u.username)}`}
+                                            src={
+                                                u.avatar_url ||
+                                                `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(
+                                                    u.username
+                                                )}`
+                                            }
                                         />
-                                        <Link className="link" to={`/u/${encodeURIComponent(u.username)}`}>{u.username}</Link>
+                                        <Link className="link" to={`/u/${encodeURIComponent(u.username)}`}>
+                                            {u.username}
+                                        </Link>
                                     </li>
                                 ))}
                             </ul>
@@ -265,16 +288,23 @@ export default function Feed() {
                                     <li key={f.id} className="py-1 flex items-center gap-2">
                                         <img
                                             className="w-6 h-6 rounded-full border"
-                                            src={f.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(f.username)}`}
+                                            src={
+                                                f.avatar_url ||
+                                                `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(
+                                                    f.username
+                                                )}`
+                                            }
                                         />
-                                        <Link className="link" to={`/u/${encodeURIComponent(f.username)}`}>{f.username}</Link>
+                                        <Link className="link" to={`/u/${encodeURIComponent(f.username)}`}>
+                                            {f.username}
+                                        </Link>
                                     </li>
                                 ))}
                             </ul>
                         )}
                     </div>
 
-                    {/* New: Pending requests (incoming) */}
+                    {/* Pending requests (incoming) */}
                     <div className="card p-3">
                         <div className="font-semibold mb-2">Pending requests</div>
                         {incoming.length === 0 ? (
@@ -325,7 +355,9 @@ export default function Feed() {
                             <div className="p-4 muted">No activity yet.</div>
                         ) : (
                             <ul className="list-none m-0 p-0">
-                                {items.map((a) => <ActivityRow key={a.id} a={a} />)}
+                                {items.map((a) => (
+                                    <ActivityRow key={a.id} a={a} />
+                                ))}
                             </ul>
                         )}
                     </div>
