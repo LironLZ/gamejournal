@@ -49,6 +49,9 @@ urlpatterns = [
     # user search/browse (used by Discover People)
     path('users/', views.search_users, name='search-users'),
 
+    # simple friend relationship probe
+    path('friends/status/<str:username>/', views.friendship_status, name='friendship-status'),
+
     # resources
     path('', include(router.urls)),
     path('', include(nested.urls)),

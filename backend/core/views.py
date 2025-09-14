@@ -289,7 +289,7 @@ def search_users(request):
     ).values_list("from_user_id", flat=True)
     qs = qs.exclude(id__in=list(pending_to)).exclude(id__in=list(pending_from))
 
-    # Search
+    # Search (case-insensitive)
     qs = qs.filter(username__icontains=q).order_by("username")[:30]
 
     # Shape response
@@ -677,7 +677,7 @@ class FriendsViewSet(viewsets.ViewSet):
         return Response(status=204)
 
 
-# --- Public game details (read-only) -----------------------------------------
+# ---- Public game details (read-only) -----------------------------------------
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def public_game_detail(request, game_id: int):
@@ -691,7 +691,7 @@ def public_game_detail(request, game_id: int):
     qs = (
         GameEntry.objects
         .filter(game=game)
-        .select_related("user", "user__profile")  # pull avatar efficiently
+        .select_related("user", "user__profile")
         .order_by("-updated_at")
     )
 
@@ -768,3 +768,37 @@ def activity_feed(request):
 
     data = ActivitySerializer(qs, many=True, context={"request": request}).data
     return Response(data)
+
+
+# ---------- Friend relationship status (for profile header) ----------
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def friendship_status(request, username: str):
+    """
+    GET /api/friends/status/<username>/
+    Returns:
+      { "status": "SELF"|"FRIENDS"|"NONE"|"OUTGOING"|"INCOMING", "request_id": <int|null> }
+    """
+    other = get_object_or_404(User, username=username)
+
+    if other == request.user:
+        return Response({"status": "SELF", "request_id": None})
+
+    if _are_friends(request.user, other):
+        return Response({"status": "FRIENDS", "request_id": None})
+
+    # Outgoing pending (I sent to them)
+    out_req = FriendRequest.objects.filter(
+        from_user=request.user, to_user=other, status=FriendRequest.Status.PENDING
+    ).first()
+    if out_req:
+        return Response({"status": "OUTGOING", "request_id": out_req.id})
+
+    # Incoming pending (they sent to me)
+    in_req = FriendRequest.objects.filter(
+        from_user=other, to_user=request.user, status=FriendRequest.Status.PENDING
+    ).first()
+    if in_req:
+        return Response({"status": "INCOMING", "request_id": in_req.id})
+
+    return Response({"status": "NONE", "request_id": None})

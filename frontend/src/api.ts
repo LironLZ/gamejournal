@@ -93,3 +93,52 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+/* =========================================================
+   People search & friends API
+   ========================================================= */
+
+export type MiniUser = { id: number; username: string; avatar_url?: string | null };
+
+export const searchUsers = (q: string) =>
+    api.get<MiniUser[]>(`/users/`, { params: { q } }).then((r) => r.data);
+
+/** Friends list for a given username (public list) -> MiniUser[] */
+export const getFriendsOf = (username: string) =>
+    api.get<{ results: MiniUser[] }>(`/friends/${encodeURIComponent(username)}/`)
+        .then((r) => r.data?.results ?? []);
+
+/** Relationship status to drive the profile button */
+export type FriendStatus = "SELF" | "FRIENDS" | "NONE" | "OUTGOING" | "INCOMING";
+export const getFriendshipStatus = (username: string) =>
+    api.get<{ status: FriendStatus; request_id: number | null }>(`/friends/status/${encodeURIComponent(username)}/`)
+        .then((r) => r.data);
+
+/** Pending requests -> { incoming: FriendRequest[], outgoing: FriendRequest[] } */
+export type FriendRequest = {
+    id: number;
+    from_user: MiniUser;
+    to_user: MiniUser;
+    status: "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELED";
+    created_at: string;
+    responded_at: string | null;
+};
+export const getFriendRequests = () =>
+    api.get<{ incoming: FriendRequest[]; outgoing: FriendRequest[] }>(`/friends/requests/`)
+        .then((r) => r.data);
+
+/** Send friend request */
+export const sendFriendRequest = (to_user_id: number) =>
+    api.post(`/friends/requests/`, { to_user_id }).then((r) => r.data);
+
+/** Accept/Decline/Cancel specific request id */
+export const acceptFriendRequest = (id: number) =>
+    api.post(`/friends/requests/${id}/accept/`).then((r) => r.data);
+export const declineFriendRequest = (id: number) =>
+    api.post(`/friends/requests/${id}/decline/`).then((r) => r.data);
+export const cancelFriendRequest = (id: number) =>
+    api.post(`/friends/requests/${id}/cancel/`).then((r) => r.data);
+
+/** Unfriend a user by username */
+export const unfriend = (username: string) =>
+    api.delete(`/friends/${encodeURIComponent(username)}/`).then((r) => r.data);

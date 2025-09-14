@@ -1,7 +1,15 @@
 // src/pages/Feed.tsx
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import api from "../api";
+import api, {
+    MiniUser,
+    searchUsers,
+    getFriendsOf,
+    getFriendRequests,
+    acceptFriendRequest,
+    declineFriendRequest,
+    FriendRequest,
+} from "../api";
 
 type Activity = {
     id: number;
@@ -13,8 +21,6 @@ type Activity = {
     game: { id: number; title: string; release_year?: number | null; cover_url?: string | null };
     created_at: string;
 };
-
-type MiniUser = { id: number; username: string; avatar_url?: string | null };
 
 function timeAgo(iso: string) {
     const d = new Date(iso);
@@ -90,13 +96,15 @@ export default function Feed() {
     const loadMoreRef = useRef<HTMLDivElement | null>(null);
     const [hasMore, setHasMore] = useState(true);
 
-    // friends + search (merged Friends page)
+    // Left column: identity, friends, search, pending
     const [me, setMe] = useState<string>("");
     const [friends, setFriends] = useState<MiniUser[] | null>(null); // null = loading
     const [q, setQ] = useState("");
     const [searchResults, setSearchResults] = useState<MiniUser[]>([]);
+    const [incoming, setIncoming] = useState<FriendRequest[]>([]);
+    const [busyReqId, setBusyReqId] = useState<number | null>(null);
 
-    // Load identity + friends (use the correct endpoint: /auth/whoami/)
+    // Load identity + friends + pending
     useEffect(() => {
         let alive = true;
         (async () => {
@@ -107,15 +115,24 @@ export default function Feed() {
                 setMe(u);
 
                 if (u) {
-                    const fr = await api.get<{ results: MiniUser[] }>(`/friends/${encodeURIComponent(u)}/`);
+                    const fr = await getFriendsOf(u);
                     if (!alive) return;
-                    setFriends(Array.isArray(fr.data?.results) ? fr.data.results : []);
+                    setFriends(fr);
                 } else {
                     setFriends([]);
                 }
             } catch {
                 if (!alive) return;
                 setFriends([]);
+            }
+
+            try {
+                const reqs = await getFriendRequests();
+                if (!alive) return;
+                setIncoming(reqs.incoming || []);
+            } catch {
+                if (!alive) return;
+                setIncoming([]);
             }
         })();
         return () => { alive = false; };
@@ -161,17 +178,51 @@ export default function Feed() {
         const term = q.trim();
         if (term.length < 2) { setSearchResults([]); return; }
         try {
-            const { data } = await api.get<MiniUser[]>("/users/", { params: { q: term } });
-            setSearchResults(Array.isArray(data) ? data : []);
+            const results = await searchUsers(term); // backend uses icontains → case-insensitive
+            setSearchResults(Array.isArray(results) ? results : []);
         } catch {
             setSearchResults([]);
+        }
+    }
+
+    async function refreshIncoming() {
+        try {
+            const reqs = await getFriendRequests();
+            setIncoming(reqs.incoming || []);
+        } catch {
+            setIncoming([]);
+        }
+    }
+
+    async function onAccept(id: number) {
+        setBusyReqId(id);
+        try {
+            await acceptFriendRequest(id);
+            await refreshIncoming();
+            // refresh friends after accepting
+            if (me) {
+                const fr = await getFriendsOf(me);
+                setFriends(fr);
+            }
+        } finally {
+            setBusyReqId(null);
+        }
+    }
+
+    async function onDecline(id: number) {
+        setBusyReqId(id);
+        try {
+            await declineFriendRequest(id);
+            await refreshIncoming();
+        } finally {
+            setBusyReqId(null);
         }
     }
 
     return (
         <div className="container-page">
             <div className="grid md:grid-cols-3 gap-4">
-                {/* Left column: Friends + Search */}
+                {/* Left column: Find users + Friends + Pending */}
                 <div className="md:col-span-1">
                     <div className="card p-3 mb-3">
                         <div className="font-semibold mb-2">Find users</div>
@@ -181,6 +232,7 @@ export default function Feed() {
                                 placeholder="Search by username…"
                                 value={q}
                                 onChange={(e) => setQ(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") doSearch(); }}
                             />
                             <button className="btn" onClick={doSearch}>Search</button>
                         </div>
@@ -199,7 +251,7 @@ export default function Feed() {
                         )}
                     </div>
 
-                    <div className="card p-3">
+                    <div className="card p-3 mb-3">
                         <div className="font-semibold mb-2">
                             Friends {friends && friends.length ? `(${friends.length})` : ""}
                         </div>
@@ -216,6 +268,40 @@ export default function Feed() {
                                             src={f.avatar_url || `https://api.dicebear.com/8.x/identicon/svg?seed=${encodeURIComponent(f.username)}`}
                                         />
                                         <Link className="link" to={`/u/${encodeURIComponent(f.username)}`}>{f.username}</Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+
+                    {/* New: Pending requests (incoming) */}
+                    <div className="card p-3">
+                        <div className="font-semibold mb-2">Pending requests</div>
+                        {incoming.length === 0 ? (
+                            <div className="muted text-sm">No pending requests.</div>
+                        ) : (
+                            <ul className="list-none p-0 m-0">
+                                {incoming.map((fr) => (
+                                    <li key={fr.id} className="py-1 flex items-center justify-between gap-2">
+                                        <Link className="link" to={`/u/${encodeURIComponent(fr.from_user.username)}`}>
+                                            {fr.from_user.username}
+                                        </Link>
+                                        <div className="flex gap-2">
+                                            <button
+                                                className="btn btn-primary btn-sm"
+                                                disabled={busyReqId === fr.id}
+                                                onClick={() => onAccept(fr.id)}
+                                            >
+                                                Accept
+                                            </button>
+                                            <button
+                                                className="btn btn-outline btn-sm"
+                                                disabled={busyReqId === fr.id}
+                                                onClick={() => onDecline(fr.id)}
+                                            >
+                                                Decline
+                                            </button>
+                                        </div>
                                     </li>
                                 ))}
                             </ul>
