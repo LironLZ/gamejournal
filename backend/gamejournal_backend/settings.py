@@ -1,32 +1,42 @@
 """
-Django settings for gamejournal_backend (dev/prod ready).
+Django settings for GameJournal (Railway backend + Netlify frontend).
 """
 from pathlib import Path
-import os
-from dotenv import load_dotenv
-import dj_database_url
 from datetime import timedelta
+import os
 
-# --- Paths / env -------------------------------------------------------------
+import dj_database_url
+from dotenv import load_dotenv
+
+# -----------------------------------------------------------------------------
+# Paths / env
+# -----------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")  # loads RAWG_API_KEY, GOOGLE_OAUTH_CLIENT_ID, CLOUDINARY_URL, etc.
+load_dotenv(BASE_DIR / ".env")
 
-# Toggle by environment (falls back to safe dev defaults)
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+
 SECRET_KEY = os.getenv(
     "DJANGO_SECRET_KEY",
-    "django-insecure--wgd1bi#p#3nkxyddihrgc$(5iz&mpm2fyud595mgrj!#!g2&",  # dev only
+    "django-insecure-dev-only-change-me",  # dev fallback
 )
-ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if h]
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
-    "AUTH_HEADER_TYPES": ("Bearer",),
-}
+# Railway host + custom ALLOWED_HOSTS
+_default_allowed = ["127.0.0.1", "localhost"]
+railway_host = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_URL")
+if railway_host:
+    _default_allowed.append(railway_host.replace("https://", "").replace("http://", ""))
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.getenv("ALLOWED_HOSTS", ",".join(_default_allowed)).split(",")
+    if h.strip()
+]
 
-# --- Apps --------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Apps
+# -----------------------------------------------------------------------------
 INSTALLED_APPS = [
+    # Django
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -34,27 +44,29 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 
-    # 3rd party
+    # 3rd-party
     "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
     "drf_spectacular",
 
-    # local
+    # Local apps
     "core",
 ]
 
-# Optional: enable Cloudinary if CLOUDINARY_URL is set
+# Optional Cloudinary (only if CLOUDINARY_URL is set)
 CLOUDINARY_URL = os.getenv("CLOUDINARY_URL", "").strip()
 USE_CLOUDINARY = bool(CLOUDINARY_URL)
 if USE_CLOUDINARY:
     INSTALLED_APPS += ["cloudinary", "cloudinary_storage"]
 
-# --- Middleware --------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Middleware (CORS FIRST)
+# -----------------------------------------------------------------------------
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",        # keep first
+    "corsheaders.middleware.CorsMiddleware",        # MUST be at top
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",   # serves static files
+    "whitenoise.middleware.WhiteNoiseMiddleware",   # static
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -63,66 +75,100 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# CORS/CSRF: allow all in dev; in prod, read from env
+# -----------------------------------------------------------------------------
+# CORS / CSRF (domain list covers Netlify + custom domain)
+# -----------------------------------------------------------------------------
+_default_frontend_origins = [
+    "https://www.gamejournal.online",
+    "https://gamejournal.online",
+    "https://agamejournal.netlify.app",
+    "http://localhost:5173",
+]
+
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 else:
-    origins = os.getenv("CORS_ALLOWED_ORIGINS", "")
-    CORS_ALLOWED_ORIGINS = [o for o in origins.split(",") if o]
+    CORS_ALLOWED_ORIGINS = [
+        o.strip() for o in os.getenv(
+            "CORS_ALLOWED_ORIGINS",
+            ",".join(_default_frontend_origins)
+        ).split(",") if o.strip()
+    ]
 
-    csrf = os.getenv("CSRF_TRUSTED_ORIGINS", "")
-    CSRF_TRUSTED_ORIGINS = [o for o in csrf.split(",") if o]
+# Preflight/credentials
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = list(os.getenv("CORS_ALLOW_HEADERS", "").split(",")) or [
+    "authorization", "content-type", "x-csrftoken", "accept", "origin"
+]
+CORS_EXPOSE_HEADERS = ["Content-Type", "Authorization"]
 
-# --- DRF / OpenAPI -----------------------------------------------------------
+# CSRF must use scheme+host
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in os.getenv(
+        "CSRF_TRUSTED_ORIGINS",
+        "https://www.gamejournal.online,https://gamejournal.online,https://agamejournal.netlify.app"
+    ).split(",") if o.strip()
+]
+
+# If you use cookie-based auth anywhere:
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SAMESITE = "None"
+
+# -----------------------------------------------------------------------------
+# DRF / JWT / OpenAPI
+# -----------------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
-
-SPECTACULAR_SETTINGS = {
-    "TITLE": "GameJournal API",
-    "VERSION": "0.1.0",
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
+SPECTACULAR_SETTINGS = {"TITLE": "GameJournal API", "VERSION": "0.1.0"}
 
-# --- SSO / Auth feature flags ------------------------------------------------
+# -----------------------------------------------------------------------------
+# Google Sign-In (allow multiple client IDs)
+# -----------------------------------------------------------------------------
 GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
-
-# NEW: allow multiple client IDs (comma-separated) so local + Netlify both work
 GOOGLE_OAUTH_CLIENT_IDS = {
     s.strip() for s in os.getenv(
         "GOOGLE_OAUTH_CLIENT_IDS",
-        GOOGLE_OAUTH_CLIENT_ID  # fall back to the single value
+        GOOGLE_OAUTH_CLIENT_ID
     ).split(",") if s.strip()
 }
 ENFORCE_ALLOWLIST = os.getenv("ENFORCE_ALLOWLIST", "false").lower() == "true"
-ALLOWED_EMAILS = {e.strip().lower() for e in os.getenv("ALLOWED_EMAILS", "").split(",") if e.strip()}
+ALLOWED_EMAILS = {
+    e.strip().lower() for e in os.getenv("ALLOWED_EMAILS", "").split(",") if e.strip()
+}
 
-# Password-based endpoints are off in prod by default
-ALLOW_REGISTRATION = os.getenv("ALLOW_REGISTRATION", "false").lower() == "true"
-ALLOW_PASSWORD_LOGIN = os.getenv("ALLOW_PASSWORD_LOGIN", "false").lower() == "true"
-
+# -----------------------------------------------------------------------------
+# URLs / WSGI
+# -----------------------------------------------------------------------------
 ROOT_URLCONF = "gamejournal_backend.urls"
-
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-            ],
-        },
-    },
-]
-
 WSGI_APPLICATION = "gamejournal_backend.wsgi.application"
 
-# --- Database (SQLite in dev; Postgres in prod via DATABASE_URL) ------------
+TEMPLATES = [{
+    "BACKEND": "django.template.backends.django.DjangoTemplates",
+    "DIRS": [],
+    "APP_DIRS": True,
+    "OPTIONS": {
+        "context_processors": [
+            "django.template.context_processors.request",
+            "django.contrib.auth.context_processors.auth",
+            "django.contrib.messages.context_processors.messages",
+        ],
+    },
+}]
+
+# -----------------------------------------------------------------------------
+# Database (SQLite local; Postgres via DATABASE_URL on Railway)
+# -----------------------------------------------------------------------------
 DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
@@ -130,7 +176,9 @@ DATABASES = {
     )
 }
 
-# --- Auth --------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Auth validators
+# -----------------------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -138,38 +186,42 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# --- i18n --------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# i18n
+# -----------------------------------------------------------------------------
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "Asia/Jerusalem"
+TIME_ZONE = os.getenv("TIME_ZONE", "UTC")
 USE_I18N = True
 USE_TZ = True
 
-# --- Static / Media / Storage ------------------------------------------------
+# -----------------------------------------------------------------------------
+# Static / Media / Storage
+# -----------------------------------------------------------------------------
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# Django 4/5: configure storages in one place
 if USE_CLOUDINARY:
-    # Use Cloudinary for user-uploaded media (ImageField/FileField)
     STORAGES = {
         "default": {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"},
         "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
-    # ensure https links from Cloudinary
     os.environ.setdefault("CLOUDINARY_SECURE", "true")
 else:
-    # Local filesystem media for dev; WhiteNoise for static
     STORAGES = {
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
         "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
 
-# --- Security / proxy --------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Security / proxy headers (Railway behind TLS)
+# -----------------------------------------------------------------------------
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+USE_X_FORWARDED_HOST = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = "DENY"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
